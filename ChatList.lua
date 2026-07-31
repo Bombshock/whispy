@@ -276,14 +276,25 @@ end
 --=========================================================================
 -- Minimap button
 --=========================================================================
+-- Gap between the minimap edge and the button ring, matching LibDBIcon. The
+-- radius itself is derived from the live minimap size so the button stays
+-- flush when Blizzard (or another addon) resizes the minimap.
+local MM_INSET = 5
+
 local function MMUpdatePos()
     local btn = ns.minimapBtn
     if not btn then return end
     local angle = math.rad(ns.db.minimap.angle or 205)
-    local x, y = math.cos(angle) * 80, math.sin(angle) * 80
+    local w = (Minimap:GetWidth()  / 2) + MM_INSET
+    local h = (Minimap:GetHeight() / 2) + MM_INSET
     btn:ClearAllPoints()
-    btn:SetPoint("CENTER", Minimap, "CENTER", x, y)
+    btn:SetPoint("CENTER", Minimap, "CENTER", math.cos(angle) * w, math.sin(angle) * h)
 end
+
+-- Keep the button flush if the minimap changes size after login.
+Minimap:HookScript("OnSizeChanged", function()
+    if ns.minimapBtn then MMUpdatePos() end
+end)
 
 local function MMDragUpdate()
     local mx, my = Minimap:GetCenter()
