@@ -2,6 +2,15 @@
 
 ![Chaty logo](logo.png)
 
+## TL;DR
+
+- whispers, regular and bnet
+- but in windows, one per person, bubbles
+- keeps history, per conversation
+- WIM replacement/clone: yes
+
+## What it actually is
+
 Chaty is a World of Warcraft addon that pulls whispers out of the chat frame and into proper conversation windows — one window per person, messages laid out as bubbles, and a full history that survives reloads and logouts. Instead of hunting for a whisper that scrolled past three pulls ago, you get a window per conversation that remembers everything that was said in it.
 
 It handles both regular and BattleNet whispers, follows every route the game uses to start a whisper (`/w`, clicking a name in chat, the unit menu), and stays out of your way in combat.
