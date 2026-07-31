@@ -1,5 +1,5 @@
--- Chaty - Whisper.lua
--- Routes whisper events into Chaty windows, suppresses the default chat copy,
+-- Whispy - Whisper.lua
+-- Routes whisper events into Whispy windows, suppresses the default chat copy,
 -- and sends outgoing whispers from conversation windows.
 
 local addonName, ns = ...
@@ -61,7 +61,7 @@ local function Alert(win)
     end
 end
 
--- Shared routing core. Both the live event handlers and the /chaty test
+-- Shared routing core. Both the live event handlers and the /whispy test
 -- simulator go through these two functions, so there is one code path.
 
 -- info = { name=, isBN=, presenceID=, guid= }
@@ -139,7 +139,7 @@ ef:SetScript("OnEvent", function(_, event, ...)
 end)
 
 --=========================================================================
--- Suppression -- hide the default chat copy while Chaty is handling whispers
+-- Suppression -- hide the default chat copy while Whispy is handling whispers
 --=========================================================================
 local function suppress()
     return ns.db and ns.db.enabled == true  -- true = block from default chat frames
@@ -158,7 +158,7 @@ for _, e in ipairs(suppressedEvents) do
 end
 
 --=========================================================================
--- Whisper start interception -- open a focused Chaty window when a whisper
+-- Whisper start interception -- open a focused Whispy window when a whisper
 -- is STARTED (/w <name>, clicking a name in chat, unit menu -> Whisper),
 -- instead of the default chat edit box. All of those routes make the chat
 -- edit box enter WHISPER mode, which calls its UpdateHeader method.
@@ -226,10 +226,10 @@ local function OnUpdateHeader(editBox, internalCall)
 end
 
 local function HookEditBox(editBox)
-    if not editBox or editBox._Chaty_UH_Hooked then return end
+    if not editBox or editBox._Whispy_UH_Hooked then return end
     if type(editBox.UpdateHeader) == "function" then
         hooksecurefunc(editBox, "UpdateHeader", OnUpdateHeader)
-        editBox._Chaty_UH_Hooked = true
+        editBox._Whispy_UH_Hooked = true
     end
 end
 
@@ -241,7 +241,7 @@ elseif ChatEdit_UpdateHeader then
 end
 
 -- Hook edit boxes that already exist at login (in case they were activated
--- before Chaty loaded).
+-- before Whispy loaded).
 local startHook = CreateFrame("Frame")
 startHook:RegisterEvent("PLAYER_LOGIN")
 startHook:SetScript("OnEvent", function()

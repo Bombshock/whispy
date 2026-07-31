@@ -2,18 +2,18 @@
 /*
  * build-release.js
  * ----------------
- * Bundles the Chaty addon into a distributable zip containing only the files
+ * Bundles the Whispy addon into a distributable zip containing only the files
  * WoW needs to run it: every root *.lua, the *.toc, and README.md.
  *
- * Files are nested under a top-level "Chaty/" folder inside the archive so the
+ * Files are nested under a top-level "Whispy/" folder inside the archive so the
  * zip extracts straight into Interface/AddOns the way WoW expects, and the zip
- * is named "Chaty-<version>.zip" using the ## Version from the .toc.
+ * is named "Whispy-<version>.zip" using the ## Version from the .toc.
  *
  * The zip is written with a tiny self-contained writer (Node's zlib + a CRC32
  * table), so this script has no npm dependencies.
  *
  * Usage:
- *   node tools/build-release.js            # writes Chaty-<version>.zip into builds/
+ *   node tools/build-release.js            # writes Whispy-<version>.zip into builds/
  *   node tools/build-release.js -o dist    # writes it into ./dist instead
  */
 
@@ -23,7 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-const ADDON_NAME = 'Chaty';
+const ADDON_NAME = 'Whispy';
 const ROOT = path.resolve(__dirname, '..');
 
 // ---------------------------------------------------------------------------

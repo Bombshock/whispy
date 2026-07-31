@@ -1,4 +1,4 @@
--- Chaty - Screenshot.lua
+-- Whispy - Screenshot.lua
 -- Presentation mode for captures. Pins the UI to English, swaps the stored
 -- history for a generated sample set, and opens a few conversations so the
 -- screen is populated. Toggling back restores the real data untouched; so

@@ -1,4 +1,4 @@
--- Chaty - Window.lua
+-- Whispy - Window.lua
 -- Modern flat conversation windows (one per conversation) + window manager.
 
 local addonName, ns = ...
@@ -8,10 +8,10 @@ local HEADER_H = 28
 local FOOTER_H = 30
 
 ns.Windows = {}            -- [key] = window frame
-local openOrder = {}       -- ordered list of keys for /chaty list
+local openOrder = {}       -- ordered list of keys for /whispy list
 local cascadeStep = 0      -- offsets successive new windows
 local winCount = 0         -- monotonic id for unique global frame names
-local lastFocusedEB        -- most recently focused Chaty edit box (link routing)
+local lastFocusedEB        -- most recently focused Whispy edit box (link routing)
 
 --=========================================================================
 -- Conversation key + display helpers
@@ -212,7 +212,7 @@ local function CreateWindow(key, info)
     local db = ns.db
 
     winCount = winCount + 1
-    local frameName = "ChatyConvWindow" .. winCount
+    local frameName = "WhispyConvWindow" .. winCount
     local win = CreateFrame("Frame", frameName, UIParent, "BackdropTemplate")
     -- ESC closes the topmost open window (native UISpecialFrames behaviour)
     tinsert(UISpecialFrames, frameName)
@@ -634,7 +634,7 @@ end
 
 --=========================================================================
 -- Shift-click item linking -- drop item/spell/quest/achievement/etc. links
--- into a Chaty edit box, exactly like the default chat frame. Works from
+-- into a Whispy edit box, exactly like the default chat frame. Works from
 -- anywhere you can shift-click: bags, character window, bank, merchant, mail,
 -- tooltips, quest log, profession windows, ... -- all of which route through
 -- HandleModifiedItemClick, which in retail 12.x calls ChatFrameUtil.InsertLink
@@ -643,11 +643,11 @@ end
 --
 -- So we wrap ChatFrameUtil.InsertLink itself (falling back to the legacy
 -- global on older clients). Target selection, in order:
---   1. A Chaty box with keyboard focus (you're actively typing) always wins.
+--   1. A Whispy box with keyboard focus (you're actively typing) always wins.
 --   2. Otherwise let the game handle its own contexts -- default chat edit box,
 --      macro editor, profession/auction search, communities, ... -- by calling
 --      the original.
---   3. If nothing there claimed the link, drop it into the Chaty window you
+--   3. If nothing there claimed the link, drop it into the Whispy window you
 --      used most recently (if still open). This is what lets you shift-click a
 --      bag or character item with a conversation open but not focused, without
 --      ever stealing a link one of the game's own frames wanted.
@@ -657,8 +657,8 @@ end
 -- hooksecurefunc -- we capture the original and call through.
 --=========================================================================
 
--- The edit box of the Chaty window that currently has keyboard focus, or nil.
-local function FocusedChatyEditBox()
+-- The edit box of the Whispy window that currently has keyboard focus, or nil.
+local function FocusedWhispyEditBox()
     for _, win in pairs(ns.Windows) do
         local eb = win.editBox
         if eb and eb:IsShown() and eb:HasFocus() then
@@ -667,7 +667,7 @@ local function FocusedChatyEditBox()
     end
     return nil
 end
-ns.FocusedChatyEditBox = FocusedChatyEditBox
+ns.FocusedWhispyEditBox = FocusedWhispyEditBox
 
 -- Install the link router by wrapping the game's link-insertion function.
 -- Deferred to PLAYER_LOGIN so the target exists regardless of addon load order
@@ -686,8 +686,8 @@ local function InstallLinkRouter()
     local original = host[field]
     local function router(text, ...)
         if text then
-            -- 1) A Chaty box you're typing in always wins.
-            local eb = FocusedChatyEditBox()
+            -- 1) A Whispy box you're typing in always wins.
+            local eb = FocusedWhispyEditBox()
             if eb then
                 eb:Insert(text)
                 eb:SetFocus()   -- keep typing / hit Enter to send
@@ -697,7 +697,7 @@ local function InstallLinkRouter()
             if original(text, ...) then
                 return true
             end
-            -- 3) Nobody else took it: hand it to the last Chaty window we used.
+            -- 3) Nobody else took it: hand it to the last Whispy window we used.
             if lastFocusedEB and lastFocusedEB:IsVisible() then
                 lastFocusedEB:Insert(text)
                 lastFocusedEB:SetFocus()

@@ -1,5 +1,5 @@
--- Chaty - History.lua
--- Per-conversation chat history stored in ChatyDB.history[key].
+-- Whispy - History.lua
+-- Per-conversation chat history stored in WhispyDB.history[key].
 
 local addonName, ns = ...
 

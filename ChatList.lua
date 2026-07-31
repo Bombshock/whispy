@@ -1,4 +1,4 @@
--- Chaty - ChatList.lua
+-- Whispy - ChatList.lua
 -- Minimap button + recent-chats flyout (left click) + full chat list (right click).
 
 local addonName, ns = ...
@@ -80,7 +80,7 @@ local flyout
 
 local function EnsureFlyout()
     if flyout then return flyout end
-    flyout = CreateFrame("Frame", "ChatyRecentFlyout", UIParent, "BackdropTemplate")
+    flyout = CreateFrame("Frame", "WhispyRecentFlyout", UIParent, "BackdropTemplate")
     flyout:SetFrameStrata("DIALOG")
     flyout:SetSize(FLY_W, 60)
     ns.ApplyFlatBg(flyout, P.bg[1], P.bg[2], P.bg[3], 0.98)
@@ -98,7 +98,7 @@ local function EnsureFlyout()
     flyout.empty = empty
 
     flyout:Hide()
-    tinsert(UISpecialFrames, "ChatyRecentFlyout")
+    tinsert(UISpecialFrames, "WhispyRecentFlyout")
 
     -- auto-close only after the cursor has been off both the flyout and the
     -- minimap button continuously for 0.5s (so slow travel across the gap is ok)
@@ -162,7 +162,7 @@ local listWin
 local function EnsureListWindow()
     if listWin then return listWin end
 
-    local w = CreateFrame("Frame", "ChatyChatListWindow", UIParent, "BackdropTemplate")
+    local w = CreateFrame("Frame", "WhispyChatListWindow", UIParent, "BackdropTemplate")
     w:SetSize(300, 400)
     w:SetFrameStrata("DIALOG")
     w:SetClampedToScreen(true)
@@ -171,7 +171,7 @@ local function EnsureListWindow()
     w:SetToplevel(true)
     w:SetPoint("CENTER")
     ns.ApplyFlatBg(w, P.bg[1], P.bg[2], P.bg[3], P.bg[4])
-    tinsert(UISpecialFrames, "ChatyChatListWindow")
+    tinsert(UISpecialFrames, "WhispyChatListWindow")
 
     -- header
     local header = CreateFrame("Frame", nil, w, "BackdropTemplate")
@@ -296,7 +296,7 @@ end
 
 local function CreateMinimapButton()
     if ns.minimapBtn then return end
-    local btn = CreateFrame("Button", "ChatyMinimapButton", Minimap)
+    local btn = CreateFrame("Button", "WhispyMinimapButton", Minimap)
     ns.minimapBtn = btn
     btn:SetFrameStrata("MEDIUM")
     btn:SetFrameLevel(8)
@@ -334,7 +334,7 @@ local function CreateMinimapButton()
     btn:SetScript("OnEnter", function(self)
         if flyout and flyout:IsShown() then return end  -- don't overlap the flyout
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("Chaty")
+        GameTooltip:AddLine("Whispy")
         GameTooltip:AddLine(ns.T("tipLeft"), 1, 1, 1)
         GameTooltip:AddLine(ns.T("tipRight"), 1, 1, 1)
         GameTooltip:AddLine(ns.T("tipDrag"), 1, 1, 1)

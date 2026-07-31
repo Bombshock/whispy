@@ -12,8 +12,8 @@ Owns build/release scripts only. The addon runtime, palette, localisation table,
 
 - `build-release.js` is zero-dependency Node: it hand-rolls the zip (Node `zlib` deflate + a CRC32 table), so it must stay free of npm dependencies.
 - Ships only root `*.lua`, `*.toc`, and `README.md`. Assets and docs (`*.png`, `*.svg`, `CHANGELOG.md`) are intentionally excluded — if a new file must ship, widen the `shipped` filter.
-- Output is `Chaty-<version>.zip` written into `builds/` (disposable), with every entry nested under a top-level `Chaty/` folder.
-- Version comes from the `## Version` line in the root `.toc`. The `ADDON_NAME` constant must match the addon folder name (`Chaty`).
+- Output is `Whispy-<version>.zip` written into `builds/` (disposable), with every entry nested under a top-level `Whispy/` folder.
+- Version comes from the `## Version` line in the root `.toc`. The `ADDON_NAME` constant must match the addon folder name (`Whispy`).
 
 ## Work Guidance
 

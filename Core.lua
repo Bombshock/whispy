@@ -1,4 +1,4 @@
--- Chaty - Core.lua
+-- Whispy - Core.lua
 -- Namespace, flat-dark palette, shared UI helpers, DB init, slash commands.
 
 local addonName, ns = ...
@@ -110,7 +110,7 @@ function ns.ShortName(name)
 end
 
 function ns.Print(msg)
-    print(ns.Hex(P.accent[1], P.accent[2], P.accent[3]) .. "Chaty|r: " .. tostring(msg))
+    print(ns.Hex(P.accent[1], P.accent[2], P.accent[3]) .. "Whispy|r: " .. tostring(msg))
 end
 
 --=========================================================================
@@ -170,7 +170,7 @@ end
 -- SavedVariables / DB
 --=========================================================================
 local defaults = {
-    enabled       = true,   -- route whispers into Chaty windows (suppress default chat)
+    enabled       = true,   -- route whispers into Whispy windows (suppress default chat)
     playSound     = true,   -- play a sound on incoming whisper
     historyLimit  = 200,    -- max stored lines per conversation
     replayLimit   = 30,     -- lines replayed into a freshly opened window
@@ -184,17 +184,17 @@ local defaults = {
 ns.defaults = defaults
 
 local function InitDB()
-    ChatyDB = ChatyDB or {}
+    WhispyDB = WhispyDB or {}
     for k, v in pairs(defaults) do
-        if ChatyDB[k] == nil then
+        if WhispyDB[k] == nil then
             if type(v) == "table" then
-                ChatyDB[k] = CopyTable(v)
+                WhispyDB[k] = CopyTable(v)
             else
-                ChatyDB[k] = v
+                WhispyDB[k] = v
             end
         end
     end
-    ns.db = ChatyDB
+    ns.db = WhispyDB
 end
 
 --=========================================================================
@@ -215,23 +215,23 @@ end)
 --=========================================================================
 -- Slash commands
 --=========================================================================
-SLASH_CHATY1 = "/chaty"
-SlashCmdList["CHATY"] = function(msg)
+SLASH_WHISPY1 = "/whispy"
+SlashCmdList["WHISPY"] = function(msg)
     local cmd, rest = msg:match("^(%S*)%s*(.*)$")
     cmd = (cmd or ""):lower()
 
     if cmd == "" or cmd == "help" then
         ns.Print("commands:")
-        ns.Print("  /chaty <name>        - open a whisper window")
-        ns.Print("  /chaty toggle        - enable/disable routing whispers into Chaty")
-        ns.Print("  /chaty sound         - toggle incoming whisper sound")
-        ns.Print("  /chaty list          - list open conversations")
-        ns.Print("  /chaty clear <name>  - clear history for a conversation")
-        ns.Print("  /chaty clearall      - wipe all stored history")
-        ns.Print("  /chaty chats         - open the full chat list")
-        ns.Print("  /chaty minimap       - show/hide the minimap button")
-        ns.Print("  /chaty test          - play a simulated demo conversation")
-        ns.Print("  /chaty sim <name> <text> - inject one fake incoming whisper")
+        ns.Print("  /whispy <name>        - open a whisper window")
+        ns.Print("  /whispy toggle        - enable/disable routing whispers into Whispy")
+        ns.Print("  /whispy sound         - toggle incoming whisper sound")
+        ns.Print("  /whispy list          - list open conversations")
+        ns.Print("  /whispy clear <name>  - clear history for a conversation")
+        ns.Print("  /whispy clearall      - wipe all stored history")
+        ns.Print("  /whispy chats         - open the full chat list")
+        ns.Print("  /whispy minimap       - show/hide the minimap button")
+        ns.Print("  /whispy test          - play a simulated demo conversation")
+        ns.Print("  /whispy sim <name> <text> - inject one fake incoming whisper")
     elseif cmd == "chats" or cmd == "all" then
         ns.ToggleChatList()
     elseif cmd == "minimap" then
@@ -250,7 +250,7 @@ SlashCmdList["CHATY"] = function(msg)
             ns.History:Clear(rest)
             ns.Print("cleared history for " .. rest)
         else
-            ns.Print("usage: /chaty clear <name>")
+            ns.Print("usage: /whispy clear <name>")
         end
     elseif cmd == "clearall" then
         wipe(ns.db.history)
@@ -264,7 +264,7 @@ SlashCmdList["CHATY"] = function(msg)
         if name and text then
             ns.SimulateIncoming(name, text)
         else
-            ns.Print("usage: /chaty sim <name> <text>")
+            ns.Print("usage: /whispy sim <name> <text>")
         end
     else
         -- treat the whole message as a player name to open

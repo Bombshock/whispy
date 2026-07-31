@@ -1,9 +1,9 @@
 ## Interface: 120007
-## Title: Chaty
+## Title: Whispy
 ## Notes: Modern whisper windows with per-conversation history.
 ## Author: NeonLazor
 ## Version: 1.0
-## SavedVariables: ChatyDB
+## SavedVariables: WhispyDB
 ## IconTexture: Interface\ICONS\INV_Letter_15
 ## DefaultState: Enabled
 ## X-Category: Chat
