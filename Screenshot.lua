@@ -186,7 +186,7 @@ function ns.SetScreenshotMode(on)
         Restore()
         ns.ReloadAllWindows()
         ns.RefreshChatLists()
-        ns.Print("screenshot mode |cffff6666OFF|r -- your chats are back.")
+        ns.Print(ns.T("ssOff", "|cffff6666" .. ns.T("stateOff") .. "|r"))
     end
 end
 

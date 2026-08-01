@@ -1,6 +1,7 @@
 ## Interface: 120007
 ## Title: Whispy
 ## Notes: Modern whisper windows with per-conversation history.
+## Notes-deDE: Moderne Flüsterfenster mit Verlauf pro Unterhaltung.
 ## Author: NeonLazor
 ## Version: 1.0
 ## SavedVariables: WhispyDB
@@ -9,6 +10,7 @@
 ## X-Category: Chat
 
 Core.lua
+Locales.lua
 History.lua
 Window.lua
 Whisper.lua

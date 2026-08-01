@@ -131,17 +131,61 @@ ns.strings = {
     tipLeft     = "|cffaaaaaaLeft-click:|r recent chats",
     tipRight    = "|cffaaaaaaRight-click:|r all chats",
     tipDrag     = "|cffaaaaaaDrag:|r move button",
+
+    -- date formats handed to ns.Date (see the strftime tokens there)
+    dateFmt      = "%B %d, %Y",   -- day divider inside a conversation
+    dateFmtShort = "%b %d",       -- chat list, for anything older than a week
+
+    -- units of the compact relative timestamps ("5m", "3h", "2d")
+    unitMin     = "m",
+    unitHour    = "h",
+    unitDay     = "d",
+
+    -- state words, colour-wrapped by the caller
+    stateOn     = "ON",
+    stateOff    = "OFF",
+    stateShown  = "shown",
+    stateHidden = "hidden",
+
+    -- slash command help (descriptions only; the command column is built in code)
+    cmdHeader   = "commands:",
+    helpOpen    = "open a whisper window",
+    helpToggle  = "enable/disable routing whispers into Whispy",
+    helpSound   = "toggle incoming whisper sound",
+    helpList    = "list open conversations",
+    helpClear   = "clear history for a conversation",
+    helpClearAll= "wipe all stored history",
+    helpChats   = "open the full chat list",
+    helpMinimap = "show/hide the minimap button",
+    helpTest    = "play a simulated demo conversation",
+    helpSim     = "inject one fake incoming whisper",
+
+    -- chat output
+    minimapState = "minimap button %s",
+    routingState = "whisper routing %s",
+    soundState   = "incoming sound %s",
+    clearedFor   = "cleared history for %s",
+    usageClear   = "usage: /whispy clear <name>",
+    wipedAll     = "all history wiped.",
+    usageSim     = "usage: /whispy sim <name> <text>",
+    combatDefer  = "in combat -- %s will open when combat ends.",
+    noOpenConvos = "no open conversations.",
+    demoRunning  = "running demo conversation (simulated, nothing sent)...",
+    ssOff        = "screenshot mode %s -- your chats are back.",
 }
 
 ns.locales = {}   -- [locale] = { key = "translation", ... }
 
-function ns.T(key)
+-- Look up a string; extra arguments are substituted into its format specifiers.
+function ns.T(key, ...)
+    local s
     if not ns.forceEnglish then
         local loc = ns.locales[GetLocale()]
-        local s = loc and loc[key]
-        if s then return s end
+        s = loc and loc[key]
     end
-    return ns.strings[key] or key
+    s = s or ns.strings[key] or key
+    if select("#", ...) > 0 then return s:format(...) end
+    return s
 end
 
 -- date() renders month and weekday names in the client's language. When
@@ -215,46 +259,60 @@ end)
 --=========================================================================
 -- Slash commands
 --=========================================================================
+-- { argument column, description key } -- the argument column stays English
+-- because it is what the user actually types.
+local HELP = {
+    { "<name>",             "helpOpen"     },
+    { "toggle",             "helpToggle"   },
+    { "sound",              "helpSound"    },
+    { "list",               "helpList"     },
+    { "clear <name>",       "helpClear"    },
+    { "clearall",           "helpClearAll" },
+    { "chats",              "helpChats"    },
+    { "minimap",            "helpMinimap"  },
+    { "test",               "helpTest"     },
+    { "sim <name> <text>",  "helpSim"      },
+}
+
+-- Colour a state word green when on, red when off.
+local function State(on, onKey, offKey)
+    if on then return "|cff44ff88" .. ns.T(onKey) .. "|r" end
+    return "|cffff6666" .. ns.T(offKey) .. "|r"
+end
+
 SLASH_WHISPY1 = "/whispy"
 SlashCmdList["WHISPY"] = function(msg)
     local cmd, rest = msg:match("^(%S*)%s*(.*)$")
     cmd = (cmd or ""):lower()
 
     if cmd == "" or cmd == "help" then
-        ns.Print("commands:")
-        ns.Print("  /whispy <name>        - open a whisper window")
-        ns.Print("  /whispy toggle        - enable/disable routing whispers into Whispy")
-        ns.Print("  /whispy sound         - toggle incoming whisper sound")
-        ns.Print("  /whispy list          - list open conversations")
-        ns.Print("  /whispy clear <name>  - clear history for a conversation")
-        ns.Print("  /whispy clearall      - wipe all stored history")
-        ns.Print("  /whispy chats         - open the full chat list")
-        ns.Print("  /whispy minimap       - show/hide the minimap button")
-        ns.Print("  /whispy test          - play a simulated demo conversation")
-        ns.Print("  /whispy sim <name> <text> - inject one fake incoming whisper")
+        ns.Print(ns.T("cmdHeader"))
+        for _, e in ipairs(HELP) do
+            ns.Print(("  /whispy %-19s - %s"):format(e[1], ns.T(e[2])))
+        end
     elseif cmd == "chats" or cmd == "all" then
         ns.ToggleChatList()
     elseif cmd == "minimap" then
         ns.SetMinimapShown(ns.db.minimap.hide == true)  -- flip current state
-        ns.Print("minimap button " .. (ns.db.minimap.hide and "|cffff6666hidden|r" or "|cff44ff88shown|r"))
+        ns.Print(ns.T("minimapState", State(not ns.db.minimap.hide, "stateShown", "stateHidden")))
     elseif cmd == "toggle" then
         ns.db.enabled = not ns.db.enabled
-        ns.Print("whisper routing " .. (ns.db.enabled and "|cff44ff88ON|r" or "|cffff6666OFF|r"))
+        ns.Print(ns.T("routingState", State(ns.db.enabled, "stateOn", "stateOff")))
     elseif cmd == "sound" then
         ns.db.playSound = not ns.db.playSound
-        ns.Print("incoming sound " .. (ns.db.playSound and "|cff44ff88ON|r" or "|cffff6666OFF|r"))
+        ns.Print(ns.T("soundState", State(ns.db.playSound, "stateOn", "stateOff")))
     elseif cmd == "list" then
         ns.ListWindows()
     elseif cmd == "clear" then
         if rest and rest ~= "" then
             ns.History:Clear(rest)
-            ns.Print("cleared history for " .. rest)
+            ns.Print(ns.T("clearedFor", rest))
         else
-            ns.Print("usage: /whispy clear <name>")
+            ns.Print(ns.T("usageClear"))
         end
     elseif cmd == "clearall" then
         wipe(ns.db.history)
-        ns.Print("all history wiped.")
+        ns.Print(ns.T("wipedAll"))
     elseif cmd == "screenshot" or cmd == "ss" then
         ns.SetScreenshotMode(not ns.screenshot)
     elseif cmd == "test" then
@@ -264,7 +322,7 @@ SlashCmdList["WHISPY"] = function(msg)
         if name and text then
             ns.SimulateIncoming(name, text)
         else
-            ns.Print("usage: /whispy sim <name> <text>")
+            ns.Print(ns.T("usageSim"))
         end
     else
         -- treat the whole message as a player name to open

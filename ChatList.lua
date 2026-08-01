@@ -18,10 +18,10 @@ local function RelTime(t)
     if not t or t == 0 then return "" end
     local d = time() - t
     if d < 60      then return ns.T("now") end
-    if d < 3600    then return math.floor(d / 60) .. "m" end
-    if d < 86400   then return math.floor(d / 3600) .. "h" end
-    if d < 604800  then return math.floor(d / 86400) .. "d" end
-    return ns.Date("%b %d", t)
+    if d < 3600    then return math.floor(d / 60) .. ns.T("unitMin") end
+    if d < 86400   then return math.floor(d / 3600) .. ns.T("unitHour") end
+    if d < 604800  then return math.floor(d / 86400) .. ns.T("unitDay") end
+    return ns.Date(ns.T("dateFmtShort"), t)
 end
 
 -- A clickable conversation row (name + time + preview). Caller anchors it.

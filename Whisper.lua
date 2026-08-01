@@ -268,7 +268,7 @@ end
 -- eyeball the UI, cascading, class colours, and history/replay offline.
 function ns.RunTest()
     if not ns.db then return end
-    ns.Print("running demo conversation (simulated, nothing sent)...")
+    ns.Print(ns.T("demoRunning"))
     local demo = {
         { 0.0, "in",  "Naowh",     "hey, free for a +18 tonight?" },
         { 0.6, "in",  "Mia",       "ty for the run earlier! that trinket carried" },

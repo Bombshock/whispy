@@ -2,6 +2,18 @@
 
 All notable changes to Whispy are documented here.
 
+## [Unreleased]
+
+### Added
+- German (`deDE`) translation covering the window and chat-list UI, the minimap tooltip, and all `/whispy` chat output, plus a localised `Notes-deDE` in the TOC.
+- Date formats are now part of the localisation table, so day dividers and chat-list stamps follow the locale's own ordering (`1. August 2026` rather than `August 01, 2026`).
+
+### Fixed
+- The resize grip was drawn and clicked underneath the message input box, leaving windows effectively unresizable; it now sits above the footer, and the input text stops short of it.
+
+### Changed
+- The remaining hard-coded chat output (slash-command help, toggle confirmations, usage errors) routes through the localisation table instead of literal English strings.
+
 ## [1.0] - 2026-08-01
 
 ### Added

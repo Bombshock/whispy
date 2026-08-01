@@ -206,7 +206,7 @@ local function DayLabel(epoch)
     if date("%Y-%m-%d", epoch) == date("%Y-%m-%d") then
         return ns.T("today")
     end
-    return ns.Date("%B %d, %Y", epoch)
+    return ns.Date(ns.T("dateFmt"), epoch)
 end
 
 local function CreateWindow(key, info)
@@ -620,7 +620,7 @@ function ns.OpenConversation(target)
     if not target or target == "" then return end
     local win = ns.GetWindow({ name = target, isBN = false })
     if not ns.ShowWindow(win, true) then
-        ns.Print("in combat -- " .. ns.ShortName(target) .. " will open when combat ends.")
+        ns.Print(ns.T("combatDefer", ns.ShortName(target)))
     end
 end
 
@@ -633,7 +633,7 @@ function ns.ListWindows()
             ns.Print("  " .. ns.ShortName(win.info.name))
         end
     end
-    if n == 0 then ns.Print("no open conversations.") end
+    if n == 0 then ns.Print(ns.T("noOpenConvos")) end
 end
 
 --=========================================================================
