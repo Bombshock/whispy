@@ -74,6 +74,7 @@ local BUB_PADY      = 5      -- bubble inner vertical padding
 local BUB_GAP       = 6      -- vertical gap between messages
 local MSG_PAD       = 8      -- list inset from window edges
 local THUMB_W       = 4      -- scrollbar width
+local GRIP_W        = 16     -- resize grip, kept clear of the input text
 
 -- A reusable message row: holds both a bubble (in/out) and a centred system
 -- line; only one is shown per render. Pooled so windows can re-flow on resize.
@@ -311,7 +312,7 @@ local function CreateWindow(key, info)
 
     local eb = CreateFrame("EditBox", nil, ebHolder)
     eb:SetPoint("LEFT", ebHolder, "LEFT", 7, 0)
-    eb:SetPoint("RIGHT", ebHolder, "RIGHT", -7, 0)
+    eb:SetPoint("RIGHT", ebHolder, "RIGHT", -(7 + GRIP_W), 0)
     eb:SetHeight(FOOTER_H - 8)
     eb:SetAutoFocus(false)
     eb:SetFontObject("ChatFontNormal")
@@ -399,6 +400,9 @@ local function CreateWindow(key, info)
     local grip = CreateFrame("Button", nil, win)
     grip:SetSize(16, 16)
     grip:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -1, 1)
+    -- the grip sits inside the footer, so it has to outrank the input backdrop
+    -- or the edit box paints over it and swallows the clicks
+    grip:SetFrameLevel(ebHolder:GetFrameLevel() + 2)
     grip:SetNormalTexture("Interface/ChatFrame/UI-ChatIM-SizeGrabber-Up")
     grip:SetHighlightTexture("Interface/ChatFrame/UI-ChatIM-SizeGrabber-Highlight")
     grip:SetPushedTexture("Interface/ChatFrame/UI-ChatIM-SizeGrabber-Down")
