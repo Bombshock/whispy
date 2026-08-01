@@ -2,7 +2,9 @@
 
 All notable changes to Whispy are documented here.
 
-## [Unreleased]
+## [1.1] - 2026-08-01
+
+**Also prepares for patch 12.1.** Beyond the translation and fixes below, this release makes Whispy ready for 12.1 — that part adds no new features and changes nothing on the live client.
 
 ### Added
 - German (`deDE`) translation covering the window and chat-list UI, the minimap tooltip, and all `/whispy` chat output, plus a localised `Notes-deDE` in the TOC.
@@ -10,8 +12,10 @@ All notable changes to Whispy are documented here.
 
 ### Fixed
 - The resize grip was drawn and clicked underneath the message input box, leaving windows effectively unresizable; it now sits above the footer, and the input text stops short of it.
+- The minimap button's distance from the minimap centre was a fixed 80 pixels, which no longer sat flush against the edge; it is now measured from the minimap's real size, so the button stays put if the minimap is ever resized.
 
 ### Changed
+- Runs on both the live client and the 12.1 PTR — the TOC now declares both (`120007, 120100`), so this single build loads without an "out of date" flag on either, and will keep working the day 12.1 goes live with no update needed.
 - The remaining hard-coded chat output (slash-command help, toggle confirmations, usage errors) routes through the localisation table instead of literal English strings.
 
 ## [1.0] - 2026-08-01
