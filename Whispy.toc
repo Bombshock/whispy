@@ -1,4 +1,4 @@
-## Interface: 120007
+## Interface: 120007, 120100
 ## Title: Whispy
 ## Notes: Modern whisper windows with per-conversation history.
 ## Notes-deDE: Moderne Flüsterfenster mit Verlauf pro Unterhaltung.
