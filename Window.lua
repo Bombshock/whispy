@@ -120,7 +120,29 @@ local function MakeRowFrame(win)
     end)
     bub:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
     bub:SetScript("OnHyperlinkClick", function(self, link, linkText, button)
+        row.linkClick = true
         pcall(SetItemRef, link, linkText, button, self)
+    end)
+
+    -- Message text is selectable: a read-only edit box is laid over the bubble
+    -- so the line can be dragged across and copied (see Copy.lua). Hovering is
+    -- enough to arm it, so the first drag already selects -- except on messages
+    -- carrying a hyperlink, where the box would swallow the link's tooltip and
+    -- click, so those arm on a click instead.
+    bub:SetScript("OnEnter", function()
+        if not ns.HasLink(row.rawText) then ns.SelectMessage(win, row) end
+    end)
+    bub:SetScript("OnLeave", function() ns.MaybeEndSelection(win) end)
+
+    -- A click that landed on a hyperlink belongs to the link, not to selection.
+    -- The two scripts can fire in either order, so the decision waits one frame.
+    bub:SetScript("OnMouseUp", function(_, button)
+        C_Timer.After(0, function()
+            local onLink = row.linkClick
+            row.linkClick = nil
+            if onLink or button ~= "LeftButton" then return end
+            ns.SelectMessage(win, row)
+        end)
     end)
     bub:EnableMouseWheel(true)
     bub:SetScript("OnMouseWheel", function(_, delta)
@@ -163,6 +185,8 @@ local function RenderMessage(win, dir, text, epoch)
     row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -win.msgY)
     row:SetWidth(content:GetWidth())
 
+    row.rawText = text
+
     if dir == "system" then
         row.bubble:Hide()
         row.sys:Show()
@@ -182,6 +206,7 @@ local function RenderMessage(win, dir, text, epoch)
     bub:SetBackdropColor(bg[1], bg[2], bg[3], bg[4])
 
     local fs = row.text
+    fs:Show()   -- a recycled row may have been hidden by a selection box
     fs:SetWidth(win.maxTextW)
     fs:SetText(text)
     local naturalW = fs:GetUnboundedStringWidth() or win.maxTextW
@@ -398,8 +423,12 @@ local function CreateWindow(key, info)
     end)
     scrollFrame:SetScript("OnScrollRangeChanged", function() win:UpdateThumb() end)
 
-    -- clicking anywhere on the body raises the window and focuses the input
-    win:SetScript("OnMouseDown", function()
+    -- Clicking the body only raises the window: clicks on the message list
+    -- belong to text selection now, so they must not pull focus into the
+    -- input. Clicking the input strip still focuses it.
+    win:SetScript("OnMouseDown", function() win:Raise() end)
+    ebHolder:EnableMouse(true)
+    ebHolder:SetScript("OnMouseDown", function()
         win:Raise()
         eb:SetFocus()
     end)
@@ -498,6 +527,7 @@ local function CreateWindow(key, info)
     -- Throw away everything rendered and replay the stored history from
     -- scratch (used when the underlying history table is swapped out).
     function win:Reload()
+        ns.EndSelection(self)   -- rows are about to be re-used underneath it
         wipe(self.messages)
         self.poolUsed = 0
         self.msgY     = 0
@@ -510,6 +540,7 @@ local function CreateWindow(key, info)
 
     -- Re-flow all messages for the current window width (called on resize).
     function win:Relayout()
+        ns.EndSelection(self)   -- bubbles move; the overlay would be stranded
         local sfW = self.scrollFrame:GetWidth()
         if sfW and sfW > 0 then self.content:SetWidth(sfW) end
         self.maxTextW = math.floor(self.content:GetWidth() * BUB_MAXW_FRAC) - BUB_PADX * 2

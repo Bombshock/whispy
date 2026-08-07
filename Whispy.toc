@@ -13,6 +13,7 @@ Core.lua
 Locales.lua
 History.lua
 Window.lua
+Copy.lua
 Whisper.lua
 ChatList.lua
 Screenshot.lua

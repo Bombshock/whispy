@@ -26,6 +26,7 @@ It handles both regular and BattleNet whispers, follows every route the game use
 - **One conversation per player** — `Bob` and `Bob-YourRealm` resolve to the same window instead of two, so cross-realm names never split a conversation in half
 - **Shift-click linking** — drop item, spell, quest, and achievement links into a Whispy window from bags, the character sheet, tooltips, the quest log, anywhere — the game's own edit boxes and search fields still get first claim on the link
 - **Live hyperlinks in messages** — links inside bubbles show their tooltip on hover and open on click, exactly like the default chat
+- **Selectable text** — drag across any message to mark part of a line and Ctrl+C it, the way you would anywhere else; colour codes and hyperlink markup are stripped, so what you paste is what you read
 - **AFK / DND replies** — auto-replies from someone you whispered appear as a system line in their conversation, but only if the window already exists
 - **Combat-aware** — windows hide when you enter combat, reappear when you leave, and whispers that arrive mid-fight are queued rather than dropped
 - **Minimap button** — left-click for a recent-chats flyout, right-click for the full scrollable chat list, drag to reposition around the minimap
