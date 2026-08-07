@@ -281,6 +281,11 @@ end
 -- flush when Blizzard (or another addon) resizes the minimap.
 local MM_INSET = 5
 
+-- Unread badge geometry (it grows sideways for 2- and 3-digit counts).
+local BADGE_H    = 13
+local BADGE_MINW = 14
+local BADGE_PADX = 8
+
 local function MMUpdatePos()
     local btn = ns.minimapBtn
     if not btn then return end
@@ -326,6 +331,33 @@ local function CreateMinimapButton()
     ring:SetSize(53, 53)
     ring:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
 
+    -- Unread badge. A child frame rather than a texture on `btn` so it draws
+    -- above the tracking ring, and so the count can be a real font string.
+    local badge = CreateFrame("Frame", nil, btn, "BackdropTemplate")
+    badge:SetFrameLevel(btn:GetFrameLevel() + 4)
+    badge:SetSize(BADGE_MINW, BADGE_H)
+    badge:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 5, -3)
+    badge:EnableMouse(false)      -- clicks belong to the button underneath
+    ns.ApplyFlatBg(badge, P.badge[1], P.badge[2], P.badge[3], P.badge[4],
+                          P.badgeEd[1], P.badgeEd[2], P.badgeEd[3], P.badgeEd[4])
+
+    local count = badge:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    count:SetPoint("CENTER", badge, "CENTER", 0, 0)
+    count:SetTextColor(1, 1, 1)
+    badge.count = count
+
+    -- Slow breathe so it catches the eye mid-fight without being a strobe.
+    local pulse = badge:CreateAnimationGroup()
+    pulse:SetLooping("BOUNCE")
+    local fade = pulse:CreateAnimation("Alpha")
+    fade:SetFromAlpha(1)
+    fade:SetToAlpha(0.35)
+    fade:SetDuration(0.8)
+    badge.pulse = pulse
+
+    badge:Hide()
+    btn.badge = badge
+
     btn:SetScript("OnDragStart", function(self)
         self:SetScript("OnUpdate", MMDragUpdate)
     end)
@@ -346,6 +378,9 @@ local function CreateMinimapButton()
         if flyout and flyout:IsShown() then return end  -- don't overlap the flyout
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("Whispy")
+        if (ns.unreadTotal or 0) > 0 then
+            GameTooltip:AddLine(ns.T("tipUnread", ns.unreadTotal))
+        end
         GameTooltip:AddLine(ns.T("tipLeft"), 1, 1, 1)
         GameTooltip:AddLine(ns.T("tipRight"), 1, 1, 1)
         GameTooltip:AddLine(ns.T("tipDrag"), 1, 1, 1)
@@ -354,6 +389,28 @@ local function CreateMinimapButton()
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     MMUpdatePos()
+    ns.UpdateMinimapBadge()
+end
+
+-- Called from Window.lua whenever the unread count changes. Safe to call
+-- before the button exists (and while the button is hidden).
+function ns.UpdateMinimapBadge()
+    local btn = ns.minimapBtn
+    if not btn or not btn.badge then return end
+    local badge = btn.badge
+    local n = ns.unreadTotal or 0
+
+    if n <= 0 then
+        badge.pulse:Stop()
+        badge:SetAlpha(1)     -- BOUNCE can stop mid-fade; reset for next time
+        badge:Hide()
+        return
+    end
+
+    badge.count:SetText(n > 99 and "99+" or tostring(n))
+    badge:SetWidth(math.max(BADGE_MINW, math.ceil(badge.count:GetStringWidth()) + BADGE_PADX))
+    badge:Show()
+    if not badge.pulse:IsPlaying() then badge.pulse:Play() end
 end
 
 --=========================================================================

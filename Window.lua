@@ -524,7 +524,12 @@ local function CreateWindow(key, info)
         self:ScrollToBottom()
     end
 
-    win:SetScript("OnShow", function(self) self:ScrollToBottom() end)
+    -- Becoming visible is what counts as "read" -- this covers every route a
+    -- window can open by (alert, chat list, combat restore, /whispy <name>).
+    win:SetScript("OnShow", function(self)
+        self:ScrollToBottom()
+        ns.ClearUnread(self.key)
+    end)
 
     win:UpdateHeader()
     win:ReplayHistory()
@@ -565,6 +570,35 @@ function ns.GetWindow(info)
         ns.db.meta[key] = m
     end
     return win
+end
+
+--=========================================================================
+-- Unread tracking -- whispers that landed while their window was not on
+-- screen (normally because we were in combat). Drives the minimap badge.
+--
+-- Deliberately session-only: an unread counter that survives a /reload is
+-- noise, not information.
+--=========================================================================
+ns.unread = {}        -- [key] = number of unseen incoming lines
+ns.unreadTotal = 0
+
+local function BadgeChanged()
+    -- ChatList.lua owns the visuals and may not have built the button yet.
+    if ns.UpdateMinimapBadge then ns.UpdateMinimapBadge() end
+end
+
+function ns.MarkUnread(win)
+    ns.unread[win.key] = (ns.unread[win.key] or 0) + 1
+    ns.unreadTotal = ns.unreadTotal + 1
+    BadgeChanged()
+end
+
+function ns.ClearUnread(key)
+    local n = ns.unread[key]
+    if not n then return end
+    ns.unread[key] = nil
+    ns.unreadTotal = math.max(0, ns.unreadTotal - n)
+    BadgeChanged()
 end
 
 --=========================================================================

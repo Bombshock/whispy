@@ -18,6 +18,7 @@ ns.locales.deDE = {
     tipLeft     = "|cffaaaaaaLinksklick:|r letzte Chats",
     tipRight    = "|cffaaaaaaRechtsklick:|r alle Chats",
     tipDrag     = "|cffaaaaaaZiehen:|r Button verschieben",
+    tipUnread   = "|cffff6666%d ungelesen|r",
 
     -- German writes the day first and drops the comma
     dateFmt      = "%d. %B %Y",

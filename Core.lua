@@ -23,6 +23,8 @@ local P = {
     bubOut  = { 0.10, 0.30, 0.24, 1.00 },  -- outgoing bubble background (green)
     bubTxt  = { 0.93, 0.94, 0.96, 1.00 },  -- bubble text
     bubTime = { 0.60, 0.62, 0.66, 1.00 },  -- bubble timestamp
+    badge   = { 0.78, 0.15, 0.19, 1.00 },  -- unread counter on the minimap button
+    badgeEd = { 0.98, 0.42, 0.42, 1.00 },  -- ...its border
 }
 ns.P = P
 
@@ -131,6 +133,7 @@ ns.strings = {
     tipLeft     = "|cffaaaaaaLeft-click:|r recent chats",
     tipRight    = "|cffaaaaaaRight-click:|r all chats",
     tipDrag     = "|cffaaaaaaDrag:|r move button",
+    tipUnread   = "|cffff6666%d unread|r",
 
     -- date formats handed to ns.Date (see the strftime tokens there)
     dateFmt      = "%B %d, %Y",   -- day divider inside a conversation

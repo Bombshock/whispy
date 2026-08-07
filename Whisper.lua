@@ -70,6 +70,9 @@ local function RouteIncoming(info, text, alert)
     win:AddChat("in", info.name, text)
     ns.History:Add(ns.MakeKey(win.info), "in", info.name, text)
     if alert ~= false then Alert(win) end
+    -- Still hidden after the alert: combat (or a window the user closed).
+    -- Count it so the minimap badge can say something arrived.
+    if not win:IsShown() then ns.MarkUnread(win) end
     return win
 end
 
