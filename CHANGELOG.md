@@ -2,6 +2,20 @@
 
 All notable changes to Whispy are documented here.
 
+## [1.2] - 2026-08-08
+
+### Changed
+- Clicking the message list no longer focuses the input box; clicking the input strip still does.
+
+### Fixed
+- A whisper arriving in combat no longer throws `ADDON_ACTION_BLOCKED` and breaks the conversation.
+
+### Added
+- Message text is selectable: drag across a line and `Ctrl+C`.
+- Copied text is stripped of colour codes and hyperlink markup.
+- Messages with a hyperlink become selectable on click, so their tooltip and link still work on hover.
+- Unread badge on the minimap button counts whispers that arrive while their window is hidden.
+
 ## [1.1] - 2026-08-01
 
 **Also prepares for patch 12.1.** Beyond the translation and fixes below, this release makes Whispy ready for 12.1 — that part adds no new features and changes nothing on the live client.
