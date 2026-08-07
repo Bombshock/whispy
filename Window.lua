@@ -96,12 +96,20 @@ local function MakeRowFrame(win)
     -- Make item/spell/quest/etc. links in the bubble interactive, like the
     -- default chat: hover shows the tooltip, click routes through SetItemRef
     -- (so shift-click re-links via our router). The bubble is mouse-enabled so
-    -- it can detect links, but clicks propagate through so clicking non-link
-    -- text still falls to the window's OnMouseDown (focus the input), and the
-    -- wheel is forwarded so the message list keeps scrolling over a bubble.
+    -- it can detect links, which means it also swallows ordinary clicks and the
+    -- wheel -- so both are forwarded by hand to the window and the scroll frame.
+    --
+    -- Forwarded rather than propagated on purpose: SetPropagateMouseClicks is a
+    -- protected method, and these rows are built lazily, so the first whisper
+    -- from a new conversation *during combat* would call it from tainted code
+    -- and be blocked -- taking the whole window down with it. Nothing here may
+    -- assume it runs out of combat.
     bub:EnableMouse(true)
     bub:SetHyperlinksEnabled(true)
-    bub:SetPropagateMouseClicks(true)
+    bub:SetScript("OnMouseDown", function()
+        local h = win:GetScript("OnMouseDown")
+        if h then h(win) end
+    end)
     bub:SetScript("OnHyperlinkEnter", function(self, link)
         GameTooltip:SetOwner(self, "ANCHOR_CURSOR_RIGHT", 8, 0)
         if pcall(GameTooltip.SetHyperlink, GameTooltip, link) then
