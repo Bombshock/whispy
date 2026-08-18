@@ -11,9 +11,11 @@
 
 Core.lua
 Locales.lua
+Sound.lua
 History.lua
 Window.lua
 Copy.lua
 Whisper.lua
 ChatList.lua
+Options.lua
 Screenshot.lua

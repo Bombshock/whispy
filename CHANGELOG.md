@@ -11,6 +11,15 @@ All notable changes to Whispy are documented here.
 - Invite and Ignore buttons sit next to the name in the window header.
 - Invite works for Battle.net contacts playing WoW, and reports when they are not online.
 - Ignore asks for confirmation, then blocks the person and closes the window.
+- Options window, opened from the minimap button or with `/whispy options`.
+- The alert sound for incoming whispers can be picked from nine game sounds.
+- Battle.net whispers can use a sound of their own.
+- An optional sound plays when you send a whisper.
+- Sounds can be forced through while the game's sound is switched off.
+- Preview button next to each sound picker.
+
+### Changed
+- Right-clicking the minimap button opens a menu with History and Options instead of the chat list directly.
 
 ## [1.2] - 2026-08-08
 

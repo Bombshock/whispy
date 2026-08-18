@@ -274,6 +274,70 @@ function ns.RefreshChatLists()
 end
 
 --=========================================================================
+-- Minimap right-click menu (History / Options)
+--=========================================================================
+local MENU_W = 110
+local MENU_H = 22
+local menu
+
+local function EnsureMenu()
+    if menu then return menu end
+    menu = CreateFrame("Frame", "WhispyMinimapMenu", UIParent, "BackdropTemplate")
+    menu:SetFrameStrata("DIALOG")
+    ns.ApplyFlatBg(menu, P.bg[1], P.bg[2], P.bg[3], 0.98)
+    menu:Hide()
+    tinsert(UISpecialFrames, "WhispyMinimapMenu")
+
+    local entries = {
+        { key = "menuHistory", run = function() ns.ToggleChatList() end },
+        { key = "menuOptions", run = function() ns.ToggleOptions() end },
+    }
+
+    for i, e in ipairs(entries) do
+        local item = CreateFrame("Button", nil, menu)
+        item:SetHeight(MENU_H)
+        item:SetPoint("TOPLEFT", menu, "TOPLEFT", 2, -(2 + (i - 1) * MENU_H))
+        item:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -2, -(2 + (i - 1) * MENU_H))
+        item:SetHighlightTexture("Interface/Buttons/WHITE8X8")
+        item:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.08)
+
+        local fs = item:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        fs:SetPoint("LEFT", item, "LEFT", 8, 0)
+        fs:SetTextColor(P.text[1], P.text[2], P.text[3])
+        fs:SetText(ns.T(e.key))
+
+        item:SetScript("OnClick", function()
+            menu:Hide()
+            e.run()
+        end)
+    end
+
+    menu:SetSize(MENU_W, #entries * MENU_H + 4)
+
+    -- same dismissal rule as the recent-chats flyout
+    menu:SetScript("OnShow", function(self) self.outside = 0 end)
+    menu:SetScript("OnUpdate", function(self, e)
+        if self:IsMouseOver() or (ns.minimapBtn and ns.minimapBtn:IsMouseOver()) then
+            self.outside = 0
+        else
+            self.outside = (self.outside or 0) + e
+            if self.outside >= 0.5 then self:Hide() end
+        end
+    end)
+    return menu
+end
+
+local function ToggleMinimapMenu()
+    EnsureMenu()
+    if menu:IsShown() then menu:Hide(); return end
+    GameTooltip:Hide()
+    menu:ClearAllPoints()
+    menu:SetPoint("TOPRIGHT", ns.minimapBtn, "TOPLEFT", -4, 0)
+    menu:Show()
+    menu:Raise()
+end
+
+--=========================================================================
 -- Minimap button
 --=========================================================================
 -- Gap between the minimap edge and the button ring, matching LibDBIcon. The
@@ -368,14 +432,16 @@ local function CreateMinimapButton()
     btn:SetScript("OnClick", function(self, mouseButton)
         if mouseButton == "RightButton" then
             if flyout then flyout:Hide() end
-            ns.ToggleChatList()
+            ToggleMinimapMenu()
         else
+            if menu then menu:Hide() end
             ns.ToggleRecentFlyout()
         end
     end)
 
     btn:SetScript("OnEnter", function(self)
         if flyout and flyout:IsShown() then return end  -- don't overlap the flyout
+        if menu and menu:IsShown() then return end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("Whispy")
         if (ns.unreadTotal or 0) > 0 then

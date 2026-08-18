@@ -29,11 +29,12 @@ It handles both regular and BattleNet whispers, follows every route the game use
 - **Selectable text** — drag across any message to mark part of a line and Ctrl+C it, the way you would anywhere else; colour codes and hyperlink markup are stripped, so what you paste is what you read
 - **AFK / DND replies** — auto-replies from someone you whispered appear as a system line in their conversation, but only if the window already exists
 - **Combat-aware** — windows hide when you enter combat, reappear when you leave, and whispers that arrive mid-fight are queued rather than dropped
-- **Minimap button** — left-click for a recent-chats flyout, right-click for the full scrollable chat list, drag to reposition around the minimap
+- **Minimap button** — left-click for a recent-chats flyout, right-click for a menu with History and Options, drag to reposition around the minimap
 - **Chat list with previews** — every stored conversation, newest first, with a class-coloured name, a relative timestamp (`now`, `5m`, `3h`, `2d`), and a preview of the last line
 - **Resizable, movable, remembered** — drag by the header, resize by the grip, and the size and last position carry over to the next window you open
 - **Flat blue/dark UI** — a single palette drives every frame, with a thin custom scrollbar and no Blizzard chrome
-- **Sound and flash on incoming** — an optional whisper sound plus a taskbar flash when the window isn't already under your cursor
+- **Sound and flash on incoming** — a whisper sound plus a taskbar flash when the window isn't already under your cursor
+- **Configurable alert sounds** — pick the sound for incoming and outgoing whispers, give Battle.net whispers their own, and optionally force them through while game sound is off
 - **Screenshot mode** — swaps your real chats for a generated sample set so you can capture the UI without leaking private conversations; your data is restored on toggle-off and on logout, and the samples never reach SavedVariables
 - **Demo mode** — `/whispy test` plays a short scripted conversation locally so you can see the layout without waiting for someone to whisper you
 
@@ -51,6 +52,7 @@ It handles both regular and BattleNet whispers, follows every route the game use
 | `/whispy list` | Print the currently open conversations |
 | `/whispy toggle` | Enable/disable routing whispers into Whispy |
 | `/whispy sound` | Toggle the incoming-whisper sound |
+| `/whispy options` | Open the options window |
 | `/whispy minimap` | Show or hide the minimap button |
 | `/whispy clear <key>` | Clear the stored history for one conversation |
 | `/whispy clearall` | Wipe all stored history |

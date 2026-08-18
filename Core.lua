@@ -183,7 +183,7 @@ ns.strings = {
     typeHint    = "Type a message, Enter to send",
     now         = "now",
     tipLeft     = "|cffaaaaaaLeft-click:|r recent chats",
-    tipRight    = "|cffaaaaaaRight-click:|r all chats",
+    tipRight    = "|cffaaaaaaRight-click:|r history & options",
     tipDrag     = "|cffaaaaaaDrag:|r move button",
     tipUnread   = "|cffff6666%d unread|r",
 
@@ -216,6 +216,7 @@ ns.strings = {
     helpOpen    = "open a whisper window",
     helpToggle  = "enable/disable routing whispers into Whispy",
     helpSound   = "toggle incoming whisper sound",
+    helpOptions = "open the options window",
     helpList    = "list open conversations",
     helpClear   = "clear history for a conversation",
     helpClearAll= "wipe all stored history",
@@ -223,6 +224,33 @@ ns.strings = {
     helpMinimap = "show/hide the minimap button",
     helpTest    = "play a simulated demo conversation",
     helpSim     = "inject one fake incoming whisper",
+
+    -- minimap right-click menu
+    menuHistory = "History",
+    menuOptions = "Options",
+
+    -- options window
+    optTitle      = "Whispy Options",
+    optGeneral    = "General",
+    optRouting    = "Route whispers into Whispy",
+    optMinimapBtn = "Show the minimap button",
+    optSounds     = "Sounds",
+    optSndIn      = "Play a sound when a whisper arrives",
+    optSndBnet    = "Separate sound for Battle.net whispers",
+    optSndOut     = "Play a sound when you send a whisper",
+    optSndForce   = "Force sounds when game sound is off",
+    optPreview    = "Preview this sound",
+
+    -- names of the selectable alert sounds
+    sndTell     = "Whisper",
+    sndReady    = "Ready Check",
+    sndWarning  = "Raid Warning",
+    sndAlarm    = "Alarm",
+    sndBell     = "Bell",
+    sndPing     = "Map Ping",
+    sndClick    = "Click",
+    sndInvite   = "Group Invite",
+    sndMurloc   = "Murloc",
 
     -- chat output
     minimapState = "minimap button %s",
@@ -279,7 +307,15 @@ end
 --=========================================================================
 local defaults = {
     enabled       = true,   -- route whispers into Whispy windows (suppress default chat)
-    playSound     = true,   -- play a sound on incoming whisper
+    sound         = {       -- alert sounds (see Sound.lua)
+        incoming    = true,             -- play a sound when a whisper arrives
+        incomingKey = "TELL_MESSAGE",
+        bnet        = false,            -- separate sound for Battle.net whispers
+        bnetKey     = "READY_CHECK",
+        outgoing    = false,            -- play a sound when you send one
+        outgoingKey = "MAP_PING",
+        force       = false,            -- play even while game sound is off
+    },
     historyLimit  = 200,    -- max stored lines per conversation
     replayLimit   = 30,     -- lines replayed into a freshly opened window
     winWidth      = 340,
@@ -291,17 +327,33 @@ local defaults = {
 }
 ns.defaults = defaults
 
-local function InitDB()
-    WhispyDB = WhispyDB or {}
-    for k, v in pairs(defaults) do
-        if WhispyDB[k] == nil then
-            if type(v) == "table" then
-                WhispyDB[k] = CopyTable(v)
-            else
-                WhispyDB[k] = v
-            end
+-- Fill in whatever the stored DB is missing, recursing into option tables so
+-- settings added by a later version show up for existing users as well. The
+-- user-data tables (history, meta) default to empty, so recursion is a no-op
+-- for them and never touches stored conversations.
+local function Fill(target, src)
+    for k, v in pairs(src) do
+        if target[k] == nil then
+            target[k] = (type(v) == "table") and CopyTable(v) or v
+        elseif type(v) == "table" and type(target[k]) == "table" then
+            Fill(target[k], v)
         end
     end
+end
+
+local function InitDB()
+    WhispyDB = WhispyDB or {}
+
+    -- pre-1.3 kept a single on/off flag for the incoming whisper sound
+    if WhispyDB.playSound ~= nil then
+        WhispyDB.sound = WhispyDB.sound or {}
+        if WhispyDB.sound.incoming == nil then
+            WhispyDB.sound.incoming = WhispyDB.playSound
+        end
+        WhispyDB.playSound = nil
+    end
+
+    Fill(WhispyDB, defaults)
     ns.db = WhispyDB
 end
 
@@ -329,6 +381,7 @@ local HELP = {
     { "<name>",             "helpOpen"     },
     { "toggle",             "helpToggle"   },
     { "sound",              "helpSound"    },
+    { "options",            "helpOptions"  },
     { "list",               "helpList"     },
     { "clear <name>",       "helpClear"    },
     { "clearall",           "helpClearAll" },
@@ -362,9 +415,11 @@ SlashCmdList["WHISPY"] = function(msg)
     elseif cmd == "toggle" then
         ns.db.enabled = not ns.db.enabled
         ns.Print(ns.T("routingState", State(ns.db.enabled, "stateOn", "stateOff")))
+    elseif cmd == "options" or cmd == "config" then
+        ns.ToggleOptions()
     elseif cmd == "sound" then
-        ns.db.playSound = not ns.db.playSound
-        ns.Print(ns.T("soundState", State(ns.db.playSound, "stateOn", "stateOff")))
+        ns.db.sound.incoming = not ns.db.sound.incoming
+        ns.Print(ns.T("soundState", State(ns.db.sound.incoming, "stateOn", "stateOff")))
     elseif cmd == "list" then
         ns.ListWindows()
     elseif cmd == "clear" then

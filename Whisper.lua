@@ -52,9 +52,7 @@ end
 --=========================================================================
 
 local function Alert(win)
-    if ns.db.playSound then
-        PlaySound(SOUNDKIT.TELL_MESSAGE or 3081, "Master")
-    end
+    ns.AlertSound("in", win.info)
     -- ShowWindow keeps the window hidden (and queues it) while in combat.
     if ns.ShowWindow(win) and not win:IsMouseOver() then
         FlashClientIcon()
@@ -80,6 +78,7 @@ local function RouteOutgoing(info, text)
     local win = ns.GetWindow(info)
     win:AddChat("out", nil, text)
     ns.History:Add(ns.MakeKey(win.info), "out", nil, text)
+    ns.AlertSound("out", win.info)
     ns.ShowWindow(win)
     return win
 end
