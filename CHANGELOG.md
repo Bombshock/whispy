@@ -2,6 +2,12 @@
 
 All notable changes to Whispy are documented here.
 
+## [Unreleased]
+
+### Added
+- Hiding windows during combat is now an option, on by default.
+- With it off, windows stay open and new conversations open mid-fight.
+
 ## [1.3] - 2026-08-18
 
 ### Added

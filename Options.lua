@@ -265,6 +265,9 @@ local function EnsureWindow()
     Check("optRouting",
         function() return db().enabled end,
         function(v) db().enabled = v end)
+    Check("optCombatHide",
+        function() return db().combatHide end,
+        function(v) db().combatHide = v end)
     Check("optMinimapBtn",
         function() return not db().minimap.hide end,
         function(v) ns.SetMinimapShown(v) end)

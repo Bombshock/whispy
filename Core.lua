@@ -233,6 +233,7 @@ ns.strings = {
     optTitle      = "Whispy Options",
     optGeneral    = "General",
     optRouting    = "Route whispers into Whispy",
+    optCombatHide = "Hide windows during combat",
     optMinimapBtn = "Show the minimap button",
     optSounds     = "Sounds",
     optSndIn      = "Play a sound when a whisper arrives",
@@ -307,6 +308,7 @@ end
 --=========================================================================
 local defaults = {
     enabled       = true,   -- route whispers into Whispy windows (suppress default chat)
+    combatHide    = true,   -- hide windows on entering combat, restore afterwards
     sound         = {       -- alert sounds (see Sound.lua)
         incoming    = true,             -- play a sound when a whisper arrives
         incomingKey = "TELL_MESSAGE",

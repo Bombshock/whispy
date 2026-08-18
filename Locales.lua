@@ -60,6 +60,7 @@ ns.locales.deDE = {
     optTitle      = "Whispy-Optionen",
     optGeneral    = "Allgemein",
     optRouting    = "Flüsternachrichten in Whispy anzeigen",
+    optCombatHide = "Fenster im Kampf ausblenden",
     optMinimapBtn = "Minikarten-Button anzeigen",
     optSounds     = "Töne",
     optSndIn      = "Ton abspielen, wenn eine Nachricht eintrifft",

@@ -673,6 +673,7 @@ local function CreateWindow(key, info)
         ns.ClearUnread(self.key)
     end)
 
+
     win:UpdateHeader()
     win:ReplayHistory()
     win:Hide()  -- created hidden; visibility is controlled via ns.ShowWindow
@@ -745,6 +746,8 @@ end
 
 --=========================================================================
 -- Combat auto-hide -- windows are hidden during combat and restored after.
+-- Governed by the combatHide option (default on); with it off, windows stay
+-- up and new ones open immediately even mid-fight.
 --=========================================================================
 local combatRestore = {}   -- [key] = true : windows to re-show when combat ends
 
@@ -756,7 +759,7 @@ end
 -- Show a window, unless we are in combat -- then queue it for after combat.
 -- Returns true if actually shown now.
 function ns.ShowWindow(win, focus)
-    if ns.inCombat then
+    if ns.inCombat and ns.db.combatHide then
         ns.QueueCombatRestore(win)
         return false
     end
@@ -772,6 +775,7 @@ combatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 combatFrame:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_REGEN_DISABLED" then
         ns.inCombat = true
+        if not ns.db.combatHide then return end
         for key, win in pairs(ns.Windows) do
             if win:IsShown() then
                 combatRestore[key] = true
