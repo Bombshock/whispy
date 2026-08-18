@@ -280,17 +280,18 @@ local function CreateWindow(key, info)
     accent:SetPoint("TOPLEFT", win, "TOPLEFT", 1, -(HEADER_H + 1))
     accent:SetPoint("TOPRIGHT", win, "TOPRIGHT", -1, -(HEADER_H + 1))
 
-    -- status dot -- a small colour swatch texture (no glyph font dependency)
-    local dot = header:CreateTexture(nil, "OVERLAY")
-    dot:SetSize(8, 8)
-    dot:SetPoint("LEFT", header, "LEFT", 10, 0)
-    dot:SetTexture("Interface/Buttons/WHITE8X8")
-    dot:SetVertexColor(P.accent[1], P.accent[2], P.accent[3], 1)
-    win.dot = dot
+    -- source icon -- class portrait for in-game characters, Battle.net client
+    -- icon for BN contacts. Filled in by UpdateHeader once info is known.
+    local icon = header:CreateTexture(nil, "OVERLAY")
+    icon:SetSize(14, 14)
+    icon:SetPoint("LEFT", header, "LEFT", 8, 0)
+    icon:SetTexture("Interface/Buttons/WHITE8X8")
+    icon:SetVertexColor(P.accent[1], P.accent[2], P.accent[3], 1)
+    win.icon = icon
 
     -- title (conversation name, class coloured if known)
     local title = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("LEFT", dot, "RIGHT", 6, 0)
+    title:SetPoint("LEFT", icon, "RIGHT", 6, 0)
     title:SetJustifyH("LEFT")
     win.title = title
 
@@ -464,6 +465,7 @@ local function CreateWindow(key, info)
     function win:UpdateHeader()
         local disp = ns.ShortName(self.info.name)
         local cc = self.info.isBN and nil or ns.ClassColorFromGUID(self.info.guid, self.info.class)
+        ns.SetSourceIcon(self.icon, self.info)
         if cc then
             self.title:SetText(cc:WrapTextInColorCode(disp))
         elseif self.info.isBN then
@@ -687,6 +689,16 @@ end
 function ns.ReloadAllWindows()
     for _, win in pairs(ns.Windows) do win:Reload() end
 end
+
+-- A Battle.net contact can switch games (or log off) mid-conversation, so keep
+-- the header icon of open BN windows in step with their presence.
+local bnWatch = CreateFrame("Frame")
+bnWatch:RegisterEvent("BN_FRIEND_INFO_CHANGED")
+bnWatch:SetScript("OnEvent", function()
+    for _, win in pairs(ns.Windows) do
+        if win.info.isBN then win:UpdateHeader() end
+    end
+end)
 
 -- Open a conversation by typed name (regular whisper target).
 function ns.OpenConversation(target)

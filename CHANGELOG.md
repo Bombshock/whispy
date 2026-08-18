@@ -2,6 +2,13 @@
 
 All notable changes to Whispy are documented here.
 
+## [Unreleased]
+
+### Added
+- The window header shows a class icon for in-game characters.
+- Battle.net conversations show the client icon of the game the contact is in.
+- The header icon follows a Battle.net contact when they switch games or log off.
+
 ## [1.2] - 2026-08-08
 
 ### Changed

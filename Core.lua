@@ -96,6 +96,58 @@ function ns.ClassColorFromGUID(guid, class)
     return nil
 end
 
+--=========================================================================
+-- Conversation source icon
+--   in-game character -> class portrait (falls back to the accent swatch
+--                        while the class is still unknown)
+--   Battle.net contact -> the client icon of whatever they are playing,
+--                        or the Battle.net orb when they are offline / in app
+--=========================================================================
+local BNET_ORB   = "Interface/FriendsFrame/Battlenet-Battleneticon"
+local CLASS_RING = "Interface/TargetingFrame/UI-Classes-Circles"
+
+-- Resolve the class token ("MAGE", "PRIEST", ...) for a player, if we know it.
+function ns.ClassFileFromGUID(guid, class)
+    if guid and guid ~= "" then
+        local ok, _, c = pcall(GetPlayerInfoByGUID, guid)
+        if ok and c and c ~= "" then return c end
+    end
+    return class
+end
+
+-- info = { name=, isBN=, presenceID=, guid=, class= }
+function ns.SetSourceIcon(tex, info)
+    tex:SetTexCoord(0, 1, 0, 1)
+    tex:SetVertexColor(1, 1, 1, 1)
+
+    if info.isBN then
+        local client
+        if info.presenceID and C_BattleNet and C_BattleNet.GetAccountInfoByID then
+            local ai = C_BattleNet.GetAccountInfoByID(info.presenceID)
+            local ga = ai and ai.gameAccountInfo
+            if ga and ga.isOnline then client = ga.clientProgram end
+        end
+        -- BNet_GetClientTexture returns a texture path on every client we
+        -- support; ignore anything that isn't one rather than blanking the icon.
+        local path = client and BNet_GetClientTexture and BNet_GetClientTexture(client)
+        if type(path) ~= "string" or not path:lower():find("interface") then path = nil end
+        tex:SetTexture(path or BNET_ORB)
+        return
+    end
+
+    local classFile = ns.ClassFileFromGUID(info.guid, info.class)
+    if classFile then info.class = classFile end   -- cache so it survives a reload
+    local coords    = classFile and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classFile]
+    if coords then
+        tex:SetTexture(CLASS_RING)
+        tex:SetTexCoord(unpack(coords))
+        return
+    end
+
+    tex:SetTexture("Interface/Buttons/WHITE8X8")
+    tex:SetVertexColor(P.accent[1], P.accent[2], P.accent[3], 1)
+end
+
 -- Strip a trailing "-Realm" if it matches the player's own realm, for tidy display.
 local playerRealm
 function ns.ShortName(name)
