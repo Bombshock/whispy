@@ -72,7 +72,14 @@ end
 --=========================================================================
 -- Sound picker: a flat dropdown plus a preview button
 --   get() -> sound key, set(key)
+--
+-- The popup shows at most MENU_ROWS rows and scrolls with the mouse wheel;
+-- its contents are rebuilt from ns.SoundMenu() every time it opens, so
+-- sounds registered late (LibSharedMedia) still show up.
 --=========================================================================
+local MENU_ROWS = 14
+local MENU_W    = 210
+
 local function MakeSoundPicker(parent, get, set)
     local dd = ns.MakeFlatBtn(parent, "", DD_W, ROW_H)
     dd.label:ClearAllPoints()
@@ -103,10 +110,10 @@ local function MakeSoundPicker(parent, get, set)
     -- the popup list
     local list = CreateFrame("Frame", nil, dd, "BackdropTemplate")
     list:SetFrameStrata("FULLSCREEN_DIALOG")
-    list:SetWidth(DD_W)
-    list:SetHeight(#ns.SOUNDS * ROW_H + 4)
+    list:SetWidth(MENU_W)
     ns.ApplyFlatBg(list, P.bg[1], P.bg[2], P.bg[3], 0.98)
     list:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
+    list:EnableMouseWheel(true)
     list:Hide()
 
     -- close once the cursor has been off both the list and its button a moment
@@ -120,30 +127,96 @@ local function MakeSoundPicker(parent, get, set)
         end
     end)
 
-    for i, s in ipairs(ns.SOUNDS) do
+    -- thin scroll indicator along the right edge
+    local thumb = list:CreateTexture(nil, "OVERLAY")
+    thumb:SetWidth(3)
+    thumb:SetColorTexture(P.accent[1], P.accent[2], P.accent[3], 0.4)
+
+    local menu, offset = {}, 0
+    local rows = {}
+
+    local function Redraw()
+        local shown = math.min(#menu, MENU_ROWS)
+        list:SetHeight(shown * ROW_H + 4)
+        for i = 1, MENU_ROWS do
+            local row, item = rows[i], menu[i + offset]
+            if i <= shown and item then
+                row.item = item
+                row.label:SetText(item.text)
+                if item.header then
+                    row.label:SetTextColor(P.accent[1], P.accent[2], P.accent[3])
+                    row:EnableMouse(false)
+                elseif item.key == get() then
+                    row.label:SetTextColor(P.accent[1], P.accent[2], P.accent[3])
+                    row:EnableMouse(true)
+                else
+                    row.label:SetTextColor(P.text[1], P.text[2], P.text[3])
+                    row:EnableMouse(true)
+                end
+                row:Show()
+            else
+                row.item = nil
+                row:Hide()
+            end
+        end
+        if #menu > MENU_ROWS then
+            local trackH = shown * ROW_H
+            thumb:SetHeight(math.max(12, trackH * shown / #menu))
+            thumb:ClearAllPoints()
+            thumb:SetPoint("TOPRIGHT", list, "TOPRIGHT", -2,
+                -(2 + (trackH - thumb:GetHeight()) * offset / (#menu - MENU_ROWS)))
+            thumb:Show()
+        else
+            thumb:Hide()
+        end
+    end
+
+    list:SetScript("OnMouseWheel", function(self, delta)
+        local maxOff = math.max(0, #menu - MENU_ROWS)
+        offset = math.min(maxOff, math.max(0, offset - delta * 3))
+        Redraw()
+    end)
+
+    for i = 1, MENU_ROWS do
         local row = CreateFrame("Button", nil, list)
         row:SetHeight(ROW_H)
         row:SetPoint("TOPLEFT", list, "TOPLEFT", 2, -(2 + (i - 1) * ROW_H))
-        row:SetPoint("TOPRIGHT", list, "TOPRIGHT", -2, -(2 + (i - 1) * ROW_H))
+        row:SetPoint("TOPRIGHT", list, "TOPRIGHT", -7, -(2 + (i - 1) * ROW_H))
         row:SetHighlightTexture("Interface/Buttons/WHITE8X8")
         row:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.08)
 
         local rl = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         rl:SetPoint("LEFT", row, "LEFT", 6, 0)
-        rl:SetTextColor(P.text[1], P.text[2], P.text[3])
-        rl:SetText(ns.T(s.label))
+        rl:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+        rl:SetJustifyH("LEFT")
+        rl:SetWordWrap(false)
+        row.label = rl
 
-        row:SetScript("OnClick", function()
-            set(s.key)
-            ns.PlayWhispySound(s.key)   -- WIM previews on pick; so do we
+        row:SetScript("OnClick", function(self)
+            if not self.item or self.item.header then return end
+            set(self.item.key)
+            ns.PlayWhispySound(self.item.key)   -- WIM previews on pick; so do we
             list:Hide()
             ns.RefreshOptions()
         end)
+        rows[i] = row
     end
 
     dd:SetScript("OnClick", function()
-        list:SetShown(not list:IsShown())
-        if list:IsShown() then list:Raise() end
+        if list:IsShown() then list:Hide() return end
+        menu = ns.SoundMenu()
+        -- open scrolled so the current pick is in view
+        offset = 0
+        for i, item in ipairs(menu) do
+            if item.key == get() then
+                offset = math.min(math.max(0, i - math.floor(MENU_ROWS / 2)),
+                                  math.max(0, #menu - MENU_ROWS))
+                break
+            end
+        end
+        Redraw()
+        list:Show()
+        list:Raise()
     end)
 
     function dd:Refresh()

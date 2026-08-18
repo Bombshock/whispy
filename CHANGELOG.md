@@ -2,6 +2,18 @@
 
 All notable changes to Whispy are documented here.
 
+## [Unreleased]
+
+### Added
+- The sound picker now offers 45 built-in game sounds instead of nine.
+- The picker groups sounds under section headers.
+- Sounds registered through LibSharedMedia -- by WIM, SharedMedia, and others -- appear in the picker automatically.
+- The sound dropdown scrolls with the mouse wheel.
+- The dropdown opens scrolled to the current selection.
+
+### Fixed
+- The numeric fallback id for the "Alarm 3" sound pointed at Alarm 2.
+
 ## [1.4] - 2026-08-18
 
 ### Added
