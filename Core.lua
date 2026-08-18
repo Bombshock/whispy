@@ -187,6 +187,15 @@ ns.strings = {
     tipDrag     = "|cffaaaaaaDrag:|r move button",
     tipUnread   = "|cffff6666%d unread|r",
 
+    -- header actions
+    btnInvite     = "Invite",
+    btnIgnore     = "Ignore",
+    tipInvite     = "Invite %s to your group",
+    tipIgnore     = "Ignore %s and close this window",
+    confirmIgnore = "Ignore %s? You will stop receiving whispers from them.",
+    inviteOffline = "%s is not online in World of Warcraft.",
+    ignoredNow    = "%s is now ignored.",
+
     -- date formats handed to ns.Date (see the strftime tokens there)
     dateFmt      = "%B %d, %Y",   -- day divider inside a conversation
     dateFmtShort = "%b %d",       -- chat list, for anything older than a week

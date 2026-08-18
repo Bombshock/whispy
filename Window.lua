@@ -242,6 +242,68 @@ local function DayLabel(epoch)
     return ns.Date(ns.T("dateFmt"), epoch)
 end
 
+--=========================================================================
+-- Header actions (invite / ignore)
+--
+-- Both work on the person the window is talking to, which is either a
+-- character on a realm or a Battle.net contact -- each needs its own API.
+--=========================================================================
+
+-- The game account a Battle.net contact is currently playing WoW on, if any.
+local function WoWGameAccount(info)
+    if not (info.presenceID and C_BattleNet and C_BattleNet.GetAccountInfoByID) then return nil end
+    local ai = C_BattleNet.GetAccountInfoByID(info.presenceID)
+    local ga = ai and ai.gameAccountInfo
+    if ga and ga.isOnline and ga.clientProgram == (BNET_CLIENT_WOW or "WoW") and ga.gameAccountID then
+        return ga.gameAccountID
+    end
+    return nil
+end
+
+local function InviteTarget(win)
+    local info = win.info
+    local disp = ns.ShortName(info.name)
+    if info.isBN then
+        local gameAccountID = WoWGameAccount(info)
+        if not gameAccountID then
+            ns.Print(ns.T("inviteOffline", disp))
+            return
+        end
+        if BNInviteFriend then BNInviteFriend(gameAccountID) end
+        return
+    end
+    if C_PartyInfo and C_PartyInfo.InviteUnit then
+        C_PartyInfo.InviteUnit(info.name)
+    else
+        InviteUnit(info.name)
+    end
+end
+
+StaticPopupDialogs["WHISPY_CONFIRM_IGNORE"] = {
+    text         = "%s",
+    button1      = YES,
+    button2      = NO,
+    timeout      = 0,
+    whileDead    = true,
+    hideOnEscape = true,
+    OnAccept     = function(self, win)
+        local info = win.info
+        local disp = ns.ShortName(info.name)
+        if info.isBN then
+            if info.presenceID and BNSetBlocked then BNSetBlocked(info.presenceID, true) end
+        else
+            C_FriendList.AddIgnore(info.name)
+        end
+        ns.Print(ns.T("ignoredNow", disp))
+        win:Hide()   -- nothing more can arrive here, so get it out of the way
+    end,
+}
+
+local function IgnoreTarget(win)
+    local disp = ns.ShortName(win.info.name)
+    StaticPopup_Show("WHISPY_CONFIRM_IGNORE", ns.T("confirmIgnore", disp), nil, win)
+end
+
 local function CreateWindow(key, info)
     local db = ns.db
 
@@ -293,7 +355,39 @@ local function CreateWindow(key, info)
     local title = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("LEFT", icon, "RIGHT", 6, 0)
     title:SetJustifyH("LEFT")
+    title:SetWordWrap(false)
     win.title = title
+
+    -- quick actions on the person we are talking to. They sit right after the
+    -- name (the title is sized to its text by win:LayoutHeader) so they read as
+    -- belonging to it rather than to the window.
+    local function MakeHeaderBtn(label, tipKey, onClick)
+        local b = ns.MakeFlatBtn(header, label, 10, HEADER_H - 10)
+        b:SetWidth(math.max(26, b.label:GetStringWidth() + 12))
+        b:SetScript("OnClick", function() onClick(win) end)
+        -- MakeFlatBtn owns OnEnter/OnLeave for the hover colours, so the
+        -- tooltip has to be chained onto them rather than replace them.
+        local enter, leave = b:GetScript("OnEnter"), b:GetScript("OnLeave")
+        b:SetScript("OnEnter", function(self)
+            enter(self)
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine(ns.T(tipKey, ns.ShortName(win.info.name)), 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function(self)
+            leave(self)
+            GameTooltip:Hide()
+        end)
+        return b
+    end
+
+    local invite = MakeHeaderBtn(ns.T("btnInvite"), "tipInvite", InviteTarget)
+    invite:SetPoint("LEFT", title, "RIGHT", 6, 0)
+    win.invite = invite
+
+    local ignore = MakeHeaderBtn(ns.T("btnIgnore"), "tipIgnore", IgnoreTarget)
+    ignore:SetPoint("LEFT", invite, "RIGHT", 4, 0)
+    win.ignore = ignore
 
     -- close button
     local close = CreateFrame("Button", nil, header)
@@ -306,10 +400,6 @@ local function CreateWindow(key, info)
     close:SetScript("OnEnter", function() closeLbl:SetText("|cffee6666x|r") end)
     close:SetScript("OnLeave", function() closeLbl:SetText("|cff777799x|r") end)
     close:SetScript("OnClick", function() win:Hide() end)
-
-    -- keep the title from running under the close button
-    title:SetPoint("RIGHT", close, "LEFT", -4, 0)
-    title:SetWordWrap(false)
 
     -- drag via header
     header:EnableMouse(true)
@@ -456,10 +546,28 @@ local function CreateWindow(key, info)
 
     -- re-flow bubbles whenever the window width changes
     win:SetScript("OnSizeChanged", function(self)
+        if self.LayoutHeader then self:LayoutHeader() end
         if self.content and self.messages then self:Relayout() end
     end)
 
     ------------------------------------------------------------------ methods
+
+    -- Size the title to its own text so the action buttons sit right after the
+    -- name, but never let it push them under the close button.
+    function win:LayoutHeader()
+        local avail = self.header:GetWidth()
+                    - 28                                  -- left margin + icon + gap
+                    - (self.invite:GetWidth() + 6)
+                    - (self.ignore:GetWidth() + 4)
+                    - 32                                  -- close button + gap
+        local fs = self.title
+        local textW = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
+        if not textW then
+            fs:SetWidth(0)                                -- back to auto-size to measure
+            textW = fs:GetStringWidth()
+        end
+        fs:SetWidth(math.max(10, math.min(textW + 2, avail)))
+    end
 
     -- Update the header title / class colour from current info.
     function win:UpdateHeader()
@@ -473,6 +581,7 @@ local function CreateWindow(key, info)
         else
             self.title:SetText(ns.Hex(P.text[1], P.text[2], P.text[3]) .. disp .. "|r")
         end
+        self:LayoutHeader()
     end
 
     -- Recompute thumb size/position from content vs viewport.

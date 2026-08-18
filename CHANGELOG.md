@@ -8,6 +8,9 @@ All notable changes to Whispy are documented here.
 - The window header shows a class icon for in-game characters.
 - Battle.net conversations show the client icon of the game the contact is in.
 - The header icon follows a Battle.net contact when they switch games or log off.
+- Invite and Ignore buttons sit next to the name in the window header.
+- Invite works for Battle.net contacts playing WoW, and reports when they are not online.
+- Ignore asks for confirmation, then blocks the person and closes the window.
 
 ## [1.2] - 2026-08-08
 
