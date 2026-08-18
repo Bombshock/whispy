@@ -8,6 +8,10 @@ All notable changes to Whispy are documented here.
 - Hiding windows during combat is now an option, on by default.
 - With it off, windows stay open and new conversations open mid-fight.
 
+### Changed
+- Whispering someone who is offline shows the "not online" reply inside the conversation window instead of the main chat.
+- The offline notice is not saved to history and disappears when its window is closed.
+
 ## [1.3] - 2026-08-18
 
 ### Added

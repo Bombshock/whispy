@@ -127,6 +127,32 @@ end
 handlers.CHAT_MSG_AFK = autoReply("AFK")
 handlers.CHAT_MSG_DND = autoReply("DND")
 
+-- "No player named '%s' is currently playing." -- the client-localised format
+-- string, turned into a Lua pattern that captures the name.
+local playerNotFound = ERR_CHAT_PLAYER_NOT_FOUND_S and
+    ("^" .. ERR_CHAT_PLAYER_NOT_FOUND_S
+        :gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1")
+        :gsub("%%%%s", "(.+)") .. "$")
+
+-- Returns the open window for the offline target named in a system message,
+-- or nil when the message is something else / no conversation is open.
+local function OfflineTargetWindow(text)
+    if not playerNotFound then return nil end
+    if issecretvalue and issecretvalue(text) then return nil end
+    local name = text and text:match(playerNotFound)
+    if not name then return nil end
+    return ns.Windows[ns.MakeKey({ name = name, isBN = false })]
+end
+
+-- Whispering someone offline: show the server's "not online" reply inside the
+-- conversation window instead of the default chat frame. The line is
+-- transient -- closing the window drops it, and it is never saved to history.
+function handlers.CHAT_MSG_SYSTEM(...)
+    local text = ...
+    local win = OfflineTargetWindow(text)
+    if win then win:AddChat("system", nil, text, nil, true) end
+end
+
 --=========================================================================
 -- Event frame (routing) -- runs once per event, independent of chat frames
 --=========================================================================
@@ -158,6 +184,12 @@ local suppressedEvents = {
 for _, e in ipairs(suppressedEvents) do
     ChatFrame_AddMessageEventFilter(e, suppress)
 end
+
+-- System messages are only hidden selectively: just the "player not online"
+-- reply, and only when a Whispy window is open to show it instead.
+ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, text)
+    return suppress() and OfflineTargetWindow(text) ~= nil
+end)
 
 --=========================================================================
 -- Whisper start interception -- open a focused Whispy window when a whisper

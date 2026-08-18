@@ -615,12 +615,27 @@ local function CreateWindow(key, info)
     end
 
     -- Append one message bubble. dir = "in"|"out"|"system".
-    function win:AddChat(dir, who, text, epoch)
+    -- transient lines (e.g. the offline notice) last only while the window
+    -- stays open: they are dropped again when it is closed.
+    function win:AddChat(dir, who, text, epoch, transient)
         epoch = epoch or time()
-        self.messages[#self.messages + 1] = { dir = dir, text = text, epoch = epoch }
+        self.messages[#self.messages + 1] =
+            { dir = dir, text = text, epoch = epoch, transient = transient }
         self:MaybeDateDivider(epoch)
         RenderMessage(self, dir, text, epoch)
         self:ScrollToBottom()
+    end
+
+    -- Remove transient lines and re-render, so a reopened window starts clean.
+    function win:PurgeTransient()
+        local removed = false
+        for i = #self.messages, 1, -1 do
+            if self.messages[i].transient then
+                table.remove(self.messages, i)
+                removed = true
+            end
+        end
+        if removed then self:Relayout() end
     end
 
     -- Replay stored history into a freshly opened window.
@@ -671,6 +686,11 @@ local function CreateWindow(key, info)
     win:SetScript("OnShow", function(self)
         self:ScrollToBottom()
         ns.ClearUnread(self.key)
+    end)
+
+    -- Closing a window (any hide) discards its transient lines.
+    win:SetScript("OnHide", function(self)
+        self:PurgeTransient()
     end)
 
 
