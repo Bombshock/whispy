@@ -3,7 +3,7 @@
 ## Notes: Modern whisper windows with per-conversation history.
 ## Notes-deDE: Moderne Flüsterfenster mit Verlauf pro Unterhaltung.
 ## Author: NeonLazor
-## Version: 1.2
+## Version: 1.3
 ## SavedVariables: WhispyDB
 ## IconTexture: Interface\ICONS\INV_Letter_15
 ## DefaultState: Enabled

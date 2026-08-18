@@ -2,7 +2,7 @@
 
 All notable changes to Whispy are documented here.
 
-## [Unreleased]
+## [1.3] - 2026-08-18
 
 ### Added
 - The window header shows a class icon for in-game characters.
