@@ -2,7 +2,7 @@
 
 All notable changes to Whispy are documented here.
 
-## [Unreleased]
+## [1.4] - 2026-08-18
 
 ### Added
 - Hiding windows during combat is now an option, on by default.
