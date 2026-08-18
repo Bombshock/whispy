@@ -2,7 +2,7 @@
 
 All notable changes to Whispy are documented here.
 
-## [Unreleased]
+## [1.5] - 2026-08-19
 
 ### Added
 - The sound picker now offers 45 built-in game sounds instead of nine.
