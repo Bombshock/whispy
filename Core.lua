@@ -399,6 +399,18 @@ local function InitDB()
     end
 
     Fill(WhispyDB, defaults)
+
+    -- leftovers from the temporary BN name debug logging
+    WhispyDB.debugBN, WhispyDB.debugLog = nil, nil
+
+    -- names stored by older versions may be protected kstrings; they cannot
+    -- outlive the session that minted them, so drop them and re-resolve
+    if WhispyDB.meta and ns.IsKString then
+        for _, m in pairs(WhispyDB.meta) do
+            if m.name and ns.IsKString(m.name) then m.name = nil end
+        end
+    end
+
     ns.db = WhispyDB
 end
 

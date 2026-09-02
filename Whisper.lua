@@ -36,16 +36,52 @@ end
 --=========================================================================
 -- BattleNet name resolution
 --=========================================================================
+
+local function IsSecret(v)
+    return issecretvalue ~= nil and issecretvalue(v)
+end
+
+-- Retail 12.x can deliver the bnSenderID event arg as a "secret value", which
+-- tainted code may not read, concatenate, or pass to GetAccountInfoByID.
+-- Returns a normal, storable ID or nil: secrets are dropped, then re-resolved
+-- from the (non-secret) sender name where possible so replies keep working.
+local function UsableBNetID(presenceID, name)
+    if IsSecret(presenceID) then presenceID = nil end
+    if not presenceID and BNet_GetBNetIDAccount
+        and name and name ~= "" and not IsSecret(name) then
+        local id = BNet_GetBNetIDAccount(name)
+        if id and not IsSecret(id) then presenceID = id end
+    end
+    return presenceID
+end
+
+-- Protected display strings ("|Kf1|k...|k") render as the real name only in
+-- the session that minted them; string operations mangle them and storing
+-- them yields garbage after a reload. Treat them as unusable for display.
+local function IsKString(s)
+    return type(s) == "string" and s:find("|K", 1, true) ~= nil
+end
+ns.IsKString = IsKString
+
 local function BNName(presenceID, fallback)
+    if IsSecret(presenceID) then presenceID = nil end
     if presenceID and C_BattleNet and C_BattleNet.GetAccountInfoByID then
         local ai = C_BattleNet.GetAccountInfoByID(presenceID)
         if ai then
-            if ai.accountName and ai.accountName ~= "" then return ai.accountName end
-            if ai.battleTag then return ai.battleTag:match("^(.-)#") or ai.battleTag end
+            if ai.accountName and ai.accountName ~= ""
+                and not IsKString(ai.accountName) then
+                return ai.accountName
+            end
+            -- the battleTag is always plain text; its nickname half is the
+            -- name the contact goes by
+            if ai.battleTag and ai.battleTag ~= "" then
+                return ai.battleTag:match("^(.-)#") or ai.battleTag
+            end
         end
     end
     return fallback or ("BN:" .. tostring(presenceID))
 end
+ns.BNName = BNName
 
 --=========================================================================
 -- Incoming / outgoing routing (fires once per event)
@@ -102,16 +138,15 @@ end
 -- BattleNet incoming: arg1=text, arg2=name, arg13=presenceID
 function handlers.CHAT_MSG_BN_WHISPER(...)
     local text, author = ...
-    local presenceID = select(13, ...)
+    local presenceID = UsableBNetID(select(13, ...), author)
     RouteIncoming({ name = BNName(presenceID, author), isBN = true, presenceID = presenceID }, text)
 end
 
 -- BattleNet outgoing: arg1=text, arg2=target, arg13=presenceID
 function handlers.CHAT_MSG_BN_WHISPER_INFORM(...)
-    local text = ...
-    local presenceID = select(13, ...)
-    local name = BNName(presenceID, (select(2, ...)))
-    RouteOutgoing({ name = name, isBN = true, presenceID = presenceID }, text)
+    local text, target = ...
+    local presenceID = UsableBNetID(select(13, ...), target)
+    RouteOutgoing({ name = BNName(presenceID, target), isBN = true, presenceID = presenceID }, text)
 end
 
 -- AFK / DND auto-replies from a target you whispered: arg1=message, arg2=author
@@ -138,7 +173,7 @@ local playerNotFound = ERR_CHAT_PLAYER_NOT_FOUND_S and
 -- or nil when the message is something else / no conversation is open.
 local function OfflineTargetWindow(text)
     if not playerNotFound then return nil end
-    if issecretvalue and issecretvalue(text) then return nil end
+    if IsSecret(text) then return nil end
     local name = text and text:match(playerNotFound)
     if not name then return nil end
     return ns.Windows[ns.MakeKey({ name = name, isBN = false })]
@@ -162,6 +197,10 @@ for event in pairs(handlers) do
 end
 ef:SetScript("OnEvent", function(_, event, ...)
     if not ns.db or not ns.db.enabled then return end
+    -- A secret sender name can't key a window (MakeKey concatenates it), so
+    -- skip routing; the suppression filter below leaves the message in the
+    -- default chat frame in that case, so it isn't lost.
+    if IsSecret((select(2, ...))) then return end
     local h = handlers[event]
     if h then h(...) end
 end)
@@ -169,8 +208,11 @@ end)
 --=========================================================================
 -- Suppression -- hide the default chat copy while Whispy is handling whispers
 --=========================================================================
-local function suppress()
-    return ns.db and ns.db.enabled == true  -- true = block from default chat frames
+local function suppress(_, _, ...)
+    if not (ns.db and ns.db.enabled == true) then return false end
+    -- Whispy couldn't route a secret-named sender into a window, so leave
+    -- that copy visible in the default chat frames.
+    return not IsSecret((select(2, ...)))  -- true = block from default chat frames
 end
 
 local suppressedEvents = {
@@ -204,7 +246,7 @@ local function OpenFromWhisperStart(editBox, chatType, tellTarget)
     local isBN = (chatType == "BN_WHISPER") or (tellTarget:find("^|K") ~= nil)
     local presenceID, name
     if isBN then
-        presenceID = BNet_GetBNetIDAccount and BNet_GetBNetIDAccount(tellTarget) or nil
+        presenceID = UsableBNetID(nil, tellTarget)
         if not presenceID then return end  -- can't resolve; let default UI handle it
         name = BNName(presenceID, tellTarget)
     else
@@ -245,7 +287,7 @@ local function OnUpdateHeader(editBox, internalCall)
     -- conversation, so reset and let the default whisper edit box handle it.
     -- Checked before anything stores tellTarget, so prevTarget is never secret
     -- and the de-dup comparison below can't throw.
-    if issecretvalue and issecretvalue(tellTarget) then
+    if IsSecret(tellTarget) then
         prevType, prevTarget = nil, nil
         return
     end

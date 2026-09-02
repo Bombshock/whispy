@@ -91,9 +91,15 @@ function History:GetConversations()
         if #list > 0 then
             local m = db.meta and db.meta[key]
             local lastEntry = list[#list]
+            -- stored names from older versions may be stale kstrings; those
+            -- render as garbage, so re-resolve from the presence ID instead
+            local name = m and m.name
+            if not name or ns.IsKString(name) then
+                name = ns.BNName(m and m.presenceID, KeyToName(key))
+            end
             out[#out + 1] = {
                 key        = key,
-                name       = (m and m.name) or KeyToName(key),
+                name       = name,
                 isBN       = m and m.isBN or (key:sub(1, 3) == "BN:"),
                 presenceID = m and m.presenceID,
                 guid       = m and m.guid,

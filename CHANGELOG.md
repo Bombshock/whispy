@@ -2,6 +2,15 @@
 
 All notable changes to Whispy are documented here.
 
+## [Unreleased]
+
+### Fixed
+- Starting a whisper no longer triggers a "secret number value" error from the default chat edit box.
+- Battle.net contacts show their BattleTag name instead of dots or garbage.
+- Protected Battle.net name strings are no longer written into saved history, where they turned unreadable after a reload.
+- Shift-clicking a map waypoint pin no longer causes a blocked-action error blamed on Whispy.
+- The shift-click link router hooks the game's insert function securely instead of replacing it.
+
 ## [1.5] - 2026-08-19
 
 ### Added

@@ -561,6 +561,13 @@ local function CreateWindow(key, info)
                     - (self.ignore:GetWidth() + 4)
                     - 32                                  -- close button + gap
         local fs = self.title
+        -- kstring titles measure as ~zero width even though they render as a
+        -- full name, so give them the whole available span instead
+        local raw = fs:GetText()
+        if raw and ns.IsKString(raw) then
+            fs:SetWidth(math.max(10, avail))
+            return
+        end
         local textW = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
         if not textW then
             fs:SetWidth(0)                                -- back to auto-size to measure
@@ -717,7 +724,11 @@ function ns.GetWindow(info)
         -- refresh descriptor details we may have learned (guid, presenceID)
         if info.guid and info.guid ~= "" then win.info.guid = info.guid end
         if info.presenceID then win.info.presenceID = info.presenceID end
-        if info.name then win.info.name = info.name end
+        -- a protected kstring never replaces a usable plain name
+        if info.name and (not ns.IsKString(info.name)
+            or not win.info.name or ns.IsKString(win.info.name)) then
+            win.info.name = info.name
+        end
         if info.class then win.info.class = info.class end
         win:UpdateHeader()
     end
@@ -725,7 +736,10 @@ function ns.GetWindow(info)
     -- persist identity so the chat list can show/reopen it after a reload
     if ns.db.meta then
         local m = ns.db.meta[key] or {}
-        m.name = win.info.name or m.name
+        -- kstrings don't survive the session, so they must never be stored
+        if win.info.name and not ns.IsKString(win.info.name) then
+            m.name = win.info.name
+        end
         m.isBN = win.info.isBN or m.isBN
         if win.info.presenceID then m.presenceID = win.info.presenceID end
         if win.info.guid and win.info.guid ~= "" then m.guid = win.info.guid end
@@ -776,6 +790,24 @@ function ns.QueueCombatRestore(win)
     combatRestore[win.key] = true
 end
 
+-- Stealing keyboard focus from the default chat edit box while it is in
+-- whisper mode runs its deactivation -- including a header re-layout -- inside
+-- our tainted call stack. On Retail 12.x the whisper target renders as a
+-- secret value, so that re-layout's width arithmetic errors ("attempt to
+-- perform arithmetic on a secret number value"). Flip the box to SAY first,
+-- with an internal header update, so the re-layout only measures plain text.
+local function DefuseWhisperEditBox()
+    local editBox = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+    if not editBox or not editBox:HasFocus() then return end
+    local ct = editBox:GetAttribute("chatType")
+    if ct ~= "WHISPER" and ct ~= "BN_WHISPER" then return end
+    editBox:SetAttribute("chatType", "SAY")
+    editBox:SetAttribute("tellTarget", nil)
+    local uh = editBox.UpdateHeader or ChatEdit_UpdateHeader
+    if uh then uh(editBox, true) end
+end
+
 -- Show a window, unless we are in combat -- then queue it for after combat.
 -- Returns true if actually shown now.
 function ns.ShowWindow(win, focus)
@@ -785,7 +817,10 @@ function ns.ShowWindow(win, focus)
     end
     if not win:IsShown() then win:Show() end
     win:Raise()
-    if focus then win.editBox:SetFocus() end
+    if focus then
+        DefuseWhisperEditBox()
+        win.editBox:SetFocus()
+    end
     return true
 end
 
@@ -863,20 +898,26 @@ end
 -- (the old ChatEdit_InsertLink is now only a deprecated alias that nothing
 -- internal calls -- which is why hooking it did nothing).
 --
--- So we wrap ChatFrameUtil.InsertLink itself (falling back to the legacy
--- global on older clients). Target selection, in order:
---   1. A Whispy box with keyboard focus (you're actively typing) always wins.
---   2. Otherwise let the game handle its own contexts -- default chat edit box,
---      macro editor, profession/auction search, communities, ... -- by calling
---      the original.
---   3. If nothing there claimed the link, drop it into the Whispy window you
---      used most recently (if still open). This is what lets you shift-click a
---      bag or character item with a conversation open but not focused, without
---      ever stealing a link one of the game's own frames wanted.
+-- This must be a hooksecurefunc post-hook, never a replacement. Secure code
+-- reads ChatFrameUtil.InsertLink directly -- shift-clicking a map waypoint
+-- pin inserts the link and then calls the protected CopyToClipboard -- and a
+-- slot written by addon code is tainted, so that read taints the execution
+-- and the protected call fails (ADDON_ACTION_FORBIDDEN, blamed on us).
 --
--- InsertLink is insecure (no taint concern) and we must *return* true to stop
--- Blizzard's fallback from also inserting elsewhere, so we can't use
--- hooksecurefunc -- we capture the original and call through.
+-- A post-hook can't stop the original or see its return value, so instead of
+-- pre-empting we run after it and re-check the same consumers Blizzard's
+-- InsertLink checks (macro editor, professions search, communities chat,
+-- active chat edit box, auction house search). Only when none of them claimed
+-- the link do we route it into Whispy: the focused Whispy box first, else the
+-- most recently used window still on screen. This is what lets you shift-click
+-- a bag or character item with a conversation open but not focused, without
+-- ever stealing a link one of the game's own frames wanted.
+--
+-- One wrinkle: when nothing consumed the link, InsertLink returned false and
+-- a bag shift-click falls through to the stack-split dialog. Taking the link
+-- used to suppress that by returning true; now we cancel the dialog as it
+-- opens instead (it opens later in the same click's execution, matched by
+-- timestamp).
 --=========================================================================
 
 -- The edit box of the Whispy window that currently has keyboard focus, or nil.
@@ -891,52 +932,72 @@ local function FocusedWhispyEditBox()
 end
 ns.FocusedWhispyEditBox = FocusedWhispyEditBox
 
--- Install the link router by wrapping the game's link-insertion function.
--- Deferred to PLAYER_LOGIN so the target exists regardless of addon load order
--- (Blizzard's chat code lives in its own addon that may load after us).
+-- Would Blizzard's InsertLink have found a home for this link? Mirrors the
+-- checks in ChatFrameUtilOverrides.lua:InsertLink, in the same order, so we
+-- never double-insert a link the game already placed.
+local function GameConsumedLink(text)
+    if MacroFrameText and MacroFrameText:HasFocus() then return true end
+    local isItem = text:find("item:", 1, true) ~= nil
+    local prof = ProfessionsFrame and ProfessionsFrame.CraftingPage
+    local profSearch = prof and prof.RecipeList and prof.RecipeList.SearchBox
+    if profSearch and profSearch:HasFocus() and isItem
+        and C_Item.GetItemInfo(text) then
+        return true
+    end
+    if CommunitiesFrame and CommunitiesFrame.ChatEditBox
+        and CommunitiesFrame.ChatEditBox:HasFocus() then
+        return true
+    end
+    if ChatFrameUtil and ChatFrameUtil.GetActiveWindow then
+        if ChatFrameUtil.GetActiveWindow() then return true end
+    elseif ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow() then
+        return true
+    end
+    if AuctionHouseFrame and AuctionHouseFrame:IsVisible() then
+        if text:find("battlepet:") and text:match("%[(.+)%]") then return true end
+        if isItem and C_Item.GetItemInfo(text) then return true end
+    end
+    return false
+end
+
+-- Timestamp of the click whose link we took; the stack-split dialog that same
+-- click opens is cancelled (GetTime is frozen within one execution frame).
+local routedLinkTime
+
+local function OnInsertLink(text)
+    if not text or GameConsumedLink(text) then return end
+    local eb = FocusedWhispyEditBox()
+    if not eb and lastFocusedEB and lastFocusedEB:IsVisible() then
+        eb = lastFocusedEB
+    end
+    if not eb then return end
+    eb:Insert(text)
+    eb:SetFocus()   -- keep typing / hit Enter to send
+    routedLinkTime = GetTime()
+end
+
+-- Install the link router. Deferred to PLAYER_LOGIN so the target exists
+-- regardless of addon load order (Blizzard's chat code lives in its own addon
+-- that may load after us).
 local function InstallLinkRouter()
-    local host, field
+    if ns._linkRouterInstalled then return end
     if type(ChatFrameUtil) == "table" and type(ChatFrameUtil.InsertLink) == "function" then
-        host, field = ChatFrameUtil, "InsertLink"        -- retail 12.x
+        hooksecurefunc(ChatFrameUtil, "InsertLink", OnInsertLink)   -- retail 12.x
     elseif type(ChatEdit_InsertLink) == "function" then
-        host, field = _G, "ChatEdit_InsertLink"          -- legacy fallback
+        hooksecurefunc("ChatEdit_InsertLink", OnInsertLink)         -- legacy fallback
     else
         return
     end
-    if host[field] == ns._linkRouter then return end     -- already installed
-
-    local original = host[field]
-    local function router(text, ...)
-        if text then
-            -- 1) A Whispy box you're typing in always wins.
-            local eb = FocusedWhispyEditBox()
-            if eb then
-                eb:Insert(text)
-                eb:SetFocus()   -- keep typing / hit Enter to send
-                return true
+    -- Taking the link means the shift-click was ours: close the stack-split
+    -- dialog that same bag click opens right after our hook ran.
+    if StackSplitFrame and type(StackSplitFrame.OpenStackSplitFrame) == "function" then
+        hooksecurefunc(StackSplitFrame, "OpenStackSplitFrame", function(frame)
+            if routedLinkTime and routedLinkTime == GetTime() then
+                frame:Hide()
             end
-            -- 2) Let the game route to its own edit boxes / search fields first.
-            if original(text, ...) then
-                return true
-            end
-            -- 3) Nobody else took it: hand it to the last Whispy window we used.
-            if lastFocusedEB and lastFocusedEB:IsVisible() then
-                lastFocusedEB:Insert(text)
-                lastFocusedEB:SetFocus()
-                return true
-            end
-            return false
-        end
-        return original(text, ...)
+        end)
     end
-
-    ns._linkRouter = router
-    host[field] = router
-    -- Keep the deprecated global alias pointing at the live router as well, so
-    -- any older code that still calls ChatEdit_InsertLink benefits too.
-    if host == ChatFrameUtil and type(ChatEdit_InsertLink) == "function" then
-        ChatEdit_InsertLink = router
-    end
+    ns._linkRouterInstalled = true
 end
 
 local linkInstaller = CreateFrame("Frame")
@@ -948,7 +1009,11 @@ function ns.OpenFromKey(key)
     local m = ns.db.meta and ns.db.meta[key]
     local info
     if m then
-        info = { name = m.name, isBN = m.isBN, presenceID = m.presenceID,
+        local name = m.name
+        if m.isBN and (not name or ns.IsKString(name)) then
+            name = ns.BNName(m.presenceID)
+        end
+        info = { name = name, isBN = m.isBN, presenceID = m.presenceID,
                  guid = m.guid, class = m.class }
     else
         info = { name = key:gsub("^W:", ""), isBN = key:sub(1, 3) == "BN:" }
