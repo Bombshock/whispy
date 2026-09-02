@@ -2,7 +2,7 @@
 
 All notable changes to Whispy are documented here.
 
-## [Unreleased]
+## [1.6] - 2026-09-02
 
 ### Added
 - Pressing the game's Reply key (`R` by default) opens the conversation of the last whisper received, with the input focused.
