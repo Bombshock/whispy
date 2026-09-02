@@ -98,9 +98,14 @@ end
 -- Shared routing core. Both the live event handlers and the /whispy test
 -- simulator go through these two functions, so there is one code path.
 
+-- Conversation descriptor of the most recent incoming whisper, for the Reply
+-- keybinding. Session-only, like the default UI's own last-teller memory.
+local lastIncoming
+
 -- info = { name=, isBN=, presenceID=, guid= }
 local function RouteIncoming(info, text, alert)
     local win = ns.GetWindow(info)
+    lastIncoming = win.info
     win:AddChat("in", info.name, text)
     ns.History:Add(ns.MakeKey(win.info), "in", info.name, text)
     if alert ~= false then Alert(win) end
@@ -325,6 +330,41 @@ startHook:SetScript("OnEvent", function()
         HookEditBox(_G["ChatFrame" .. i .. "EditBox"])
     end
 end)
+
+--=========================================================================
+-- Reply keybinding -- the game's REPLY binding ("R" by default) replies to
+-- the last whisper received, but it only knows about whispers the default
+-- chat frames displayed, and Whispy suppresses those. So after the default
+-- reply runs, route the key into the window of the last incoming whisper.
+--=========================================================================
+
+local function OnReplyTell()
+    if not ns.db or not ns.db.enabled then return end
+    if not lastIncoming then return end
+    -- If the default UI did find its own last teller (a secret-named sender
+    -- Whispy left in the chat frame), the edit box is now in whisper mode and
+    -- the UpdateHeader hook above has already dealt with it -- don't fight it.
+    local editBox = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
+        or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+    if editBox then
+        local ct = editBox:GetAttribute("chatType")
+        if ct == "WHISPER" or ct == "BN_WHISPER" then return end
+    end
+    local win = ns.GetWindow(lastIncoming)
+    -- Focus a frame late: the keypress that fired the binding would otherwise
+    -- also arrive in the freshly focused edit box as a typed "r".
+    if ns.ShowWindow(win) then
+        C_Timer.After(0, function()
+            if win:IsShown() then win.editBox:SetFocus() end
+        end)
+    end
+end
+
+if ChatFrameUtil and type(ChatFrameUtil.ReplyTell) == "function" then
+    hooksecurefunc(ChatFrameUtil, "ReplyTell", OnReplyTell)
+elseif type(ChatFrame_ReplyTell) == "function" then
+    hooksecurefunc("ChatFrame_ReplyTell", OnReplyTell)  -- older-client fallback
+end
 
 --=========================================================================
 -- Test helpers -- inject fake whispers locally (nothing is sent to the server)

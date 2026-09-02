@@ -4,6 +4,9 @@ All notable changes to Whispy are documented here.
 
 ## [Unreleased]
 
+### Added
+- Pressing the game's Reply key (`R` by default) opens the conversation of the last whisper received, with the input focused.
+
 ### Fixed
 - Starting a whisper no longer triggers a "secret number value" error from the default chat edit box.
 - Battle.net contacts show their BattleTag name instead of dots or garbage.
