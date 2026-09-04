@@ -2,6 +2,28 @@
 
 All notable changes to Whispy are documented here.
 
+## [1.7] - 2026-09-05
+
+### Added
+- Tab mode: every conversation lives in one shared window, with a strip of tabs on top.
+- Tab mode is off by default and toggled in the options.
+- Switching tabs keeps a half-typed message in each conversation's input.
+- Each tab shows its conversation's coloured name and an unread badge.
+- Middle-clicking a tab closes that conversation.
+- Tabs that no longer fit collapse behind an overflow button.
+- The tab-mode window remembers its own position and size.
+
+### Changed
+- A burger button next to the name replaces the Invite and Ignore buttons.
+- The burger button opens the game's own character menu, with invite, ignore, report, copy character name, and more.
+- The options live in the game's Options window under AddOns instead of a floating window of their own.
+
+### Fixed
+- "Copy Character Name" in the burger menu opens a Ctrl+C popup instead of failing on the clipboard protection added in 12.x.
+- The copy-name popup closes itself once Ctrl+C is pressed.
+- The first click on History or Options in the minimap menu opens its window instead of doing nothing.
+- Toggling the minimap button while EllesmereUI has collected it into its addon-button flyout no longer leaves an empty or ghost slot in the grid; the toggle now updates EllesmereUI's collector state and triggers a grid rebuild.
+
 ## [1.6] - 2026-09-02
 
 ### Added

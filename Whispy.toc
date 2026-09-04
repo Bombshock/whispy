@@ -3,7 +3,7 @@
 ## Notes: Modern whisper windows with per-conversation history.
 ## Notes-deDE: Moderne Flüsterfenster mit Verlauf pro Unterhaltung.
 ## Author: NeonLazor
-## Version: 1.6
+## Version: 1.7
 ## SavedVariables: WhispyDB
 ## IconTexture: Interface\ICONS\INV_Letter_15
 ## DefaultState: Enabled
@@ -14,6 +14,7 @@ Locales.lua
 Sound.lua
 History.lua
 Window.lua
+Tabs.lua
 Copy.lua
 Whisper.lua
 ChatList.lua

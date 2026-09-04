@@ -25,6 +25,8 @@ local P = {
     bubTime = { 0.60, 0.62, 0.66, 1.00 },  -- bubble timestamp
     badge   = { 0.78, 0.15, 0.19, 1.00 },  -- unread counter on the minimap button
     badgeEd = { 0.98, 0.42, 0.42, 1.00 },  -- ...its border
+    tabStrip= { 0.04, 0.04, 0.07, 1.00 },  -- tab-mode strip behind the tabs
+    tabBg   = { 0.06, 0.06, 0.10, 1.00 },  -- inactive tab (active uses P.header)
 }
 ns.P = P
 
@@ -188,13 +190,12 @@ ns.strings = {
     tipUnread   = "|cffff6666%d unread|r",
 
     -- header actions
-    btnInvite     = "Invite",
-    btnIgnore     = "Ignore",
-    tipInvite     = "Invite %s to your group",
-    tipIgnore     = "Ignore %s and close this window",
-    confirmIgnore = "Ignore %s? You will stop receiving whispers from them.",
-    inviteOffline = "%s is not online in World of Warcraft.",
-    ignoredNow    = "%s is now ignored.",
+    tipMenu       = "Options for %s",
+    copyNameHint  = "Press Ctrl+C to copy the name",
+
+    -- tab mode
+    tipTabClose = "|cffaaaaaaMiddle-click:|r close tab",
+    tipMoreTabs = "More conversations",
 
     -- date formats handed to ns.Date (see the strftime tokens there)
     dateFmt      = "%B %d, %Y",   -- day divider inside a conversation
@@ -229,10 +230,10 @@ ns.strings = {
     menuHistory = "History",
     menuOptions = "Options",
 
-    -- options window
-    optTitle      = "Whispy Options",
+    -- options panel
     optGeneral    = "General",
     optRouting    = "Route whispers into Whispy",
+    optTabMode    = "Tab mode -- all chats in one window",
     optCombatHide = "Hide windows during combat",
     optMinimapBtn = "Show the minimap button",
     optSounds     = "Sounds",
@@ -351,6 +352,7 @@ end
 --=========================================================================
 local defaults = {
     enabled       = true,   -- route whispers into Whispy windows (suppress default chat)
+    tabMode       = false,  -- all conversations as tabs in one shared window (Tabs.lua)
     combatHide    = true,   -- hide windows on entering combat, restore afterwards
     sound         = {       -- alert sounds (see Sound.lua)
         incoming    = true,             -- play a sound when a whisper arrives
@@ -368,6 +370,8 @@ local defaults = {
     history       = {},     -- [key] = { {t=epoch, dir="in"/"out", who=name, text=..}, ... }
     meta          = {},     -- [key] = { name=, isBN=, presenceID=, guid= } (identity)
     lastPos       = nil,    -- { point, relPoint, x, y } for the next new window
+    tabPos        = nil,    -- { point, relPoint, x, y } of the tab-mode window
+    -- tabWidth / tabHeight: size of the tab-mode window, written on resize
     minimap       = { angle = 205 },  -- minimap button position (degrees)
 }
 ns.defaults = defaults

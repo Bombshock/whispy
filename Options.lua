@@ -1,5 +1,6 @@
 -- Whispy - Options.lua
--- The options window (minimap right-click -> Options).
+-- The options panel, registered as a Settings canvas category and shown
+-- under Esc > Options > AddOns (minimap right-click -> Options opens it).
 --
 -- Small hand-rolled widgets in the addon's flat-dark style rather than
 -- Blizzard's templates, so the panel matches the whisper windows.
@@ -242,62 +243,25 @@ local function MakeSoundPicker(parent, get, set)
 end
 
 --=========================================================================
--- The window
+-- The panel
+--
+-- The Settings panel reparents the frame into its canvas and anchors it to
+-- fill, so the frame carries no position, drag, close, or Escape handling
+-- of its own; the placeholder size only exists until the canvas takes over,
+-- and the category list already shows the addon name in place of a header.
 --=========================================================================
 local win
 
-local function EnsureWindow()
-    if win then return win end
-
+do
     local w = CreateFrame("Frame", "WhispyOptionsWindow", UIParent, "BackdropTemplate")
-    w:SetWidth(WIN_W)
-    w:SetFrameStrata("DIALOG")
-    w:SetClampedToScreen(true)
-    w:SetMovable(true)
-    w:EnableMouse(true)
-    w:SetToplevel(true)
-    w:SetPoint("CENTER")
+    w:SetSize(WIN_W, 540)
     ns.ApplyFlatBg(w, P.bg[1], P.bg[2], P.bg[3], P.bg[4])
-    tinsert(UISpecialFrames, "WhispyOptionsWindow")
-
-    -- header (built like the chat list window's)
-    local header = CreateFrame("Frame", nil, w, "BackdropTemplate")
-    header:SetPoint("TOPLEFT", w, "TOPLEFT", 1, -1)
-    header:SetPoint("TOPRIGHT", w, "TOPRIGHT", -1, -1)
-    header:SetHeight(28)
-    ns.ApplyFlatBg(header, P.header[1], P.header[2], P.header[3], P.header[4],
-                          P.header[1], P.header[2], P.header[3], 0)
-    header:EnableMouse(true)
-    header:RegisterForDrag("LeftButton")
-    header:SetScript("OnDragStart", function() w:StartMoving() end)
-    header:SetScript("OnDragStop", function() w:StopMovingOrSizing() end)
-
-    local accent = w:CreateTexture(nil, "ARTWORK")
-    accent:SetHeight(1)
-    accent:SetColorTexture(P.accent[1], P.accent[2], P.accent[3], 0.55)
-    accent:SetPoint("TOPLEFT", w, "TOPLEFT", 1, -29)
-    accent:SetPoint("TOPRIGHT", w, "TOPRIGHT", -1, -29)
-
-    local title = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("LEFT", header, "LEFT", 10, 0)
-    title:SetTextColor(P.accent[1], P.accent[2], P.accent[3])
-    title:SetText(ns.T("optTitle"))
-
-    local close = CreateFrame("Button", nil, header)
-    close:SetSize(26, 28)
-    close:SetPoint("RIGHT", header, "RIGHT", -2, 0)
-    local cl = close:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    cl:SetAllPoints()
-    cl:SetJustifyH("CENTER")
-    cl:SetText("|cff777799x|r")
-    close:SetScript("OnEnter", function() cl:SetText("|cffee6666x|r") end)
-    close:SetScript("OnLeave", function() cl:SetText("|cff777799x|r") end)
-    close:SetScript("OnClick", function() w:Hide() end)
+    w:Hide()
 
     --------------------------------------------------------------------
     -- body -- everything stacks downwards from `y`
     --------------------------------------------------------------------
-    local y = 38
+    local y = PAD
     local widgets = {}
 
     local function Section(key)
@@ -338,6 +302,9 @@ local function EnsureWindow()
     Check("optRouting",
         function() return db().enabled end,
         function(v) db().enabled = v end)
+    Check("optTabMode",
+        function() return db().tabMode end,
+        function(v) ns.SetTabMode(v) end)
     Check("optCombatHide",
         function() return db().combatHide end,
         function(v) db().combatHide = v end)
@@ -371,16 +338,15 @@ local function EnsureWindow()
         function() return db().sound.force end,
         function(v) db().sound.force = v end)
 
-    w:SetHeight(y + PAD - GAP)
     w.widgets = widgets
+    w:SetScript("OnShow", function() ns.RefreshOptions() end)
     win = w
-    return w
 end
 
 -- Re-read every widget from the DB, applying the parent/child enable rules:
 -- a sound picker is only live while the option it belongs to is on.
 function ns.RefreshOptions()
-    if not win then return end
+    if not ns.db then return end   -- shown before ADDON_LOADED can't happen, but cheap
     local s = ns.db.sound
     win.ddIn:SetEnabledState(s.incoming)
     win.cBnet:SetEnabledState(s.incoming)
@@ -391,10 +357,23 @@ function ns.RefreshOptions()
     end
 end
 
+-- The settings canvas keeps a 16px gap to the category list and ~12px of
+-- clear space below the tab row; anchoring over most of that lets the panel
+-- sit snug in the window. Once any anchor point is set the default
+-- SetAllPoints is skipped, so BOTTOMRIGHT has to be supplied as well.
+local category, layout = Settings.RegisterCanvasLayoutCategory(win, "Whispy")
+layout:AddAnchorPoint("TOPLEFT", -16, 10)
+layout:AddAnchorPoint("BOTTOMRIGHT", 0, 0)
+Settings.RegisterAddOnCategory(category)
+
+function ns.OpenOptions()
+    Settings.OpenToCategory(category:GetID())
+end
+
 function ns.ToggleOptions()
-    local w = EnsureWindow()
-    if w:IsShown() then w:Hide(); return end
-    ns.RefreshOptions()
-    w:Show()
-    w:Raise()
+    if SettingsPanel:IsShown() and win:IsShown() then
+        HideUIPanel(SettingsPanel)
+    else
+        ns.OpenOptions()
+    end
 end

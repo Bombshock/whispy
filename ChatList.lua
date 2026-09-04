@@ -231,6 +231,7 @@ local function EnsureListWindow()
     w.empty = empty
 
     w.rows = {}
+    w:Hide()   -- frames spawn shown; without this the first toggle "hides" it
     listWin = w
     return w
 end
@@ -374,6 +375,39 @@ local function MMDragUpdate()
     MMUpdatePos()
 end
 
+-- EllesmereUI's minimap module captures addon buttons into its own flyout grid,
+-- reparents them there permanently, and caches the grid layout. A plain
+-- Show()/Hide() neither survives its hooks (Hide is force-reverted while the
+-- grid is open) nor invalidates the cached layout, so toggling our option would
+-- leave an empty or ghost cell in the grid. Once the collector has tracked the
+-- button (it exposes its intent table and refresh entry point as globals),
+-- write the intent there too and ask it for a rebuild.
+local function EllesmereSetShown(btn, show)
+    local vis, refresh = _G._EBS_AddonVisible, _G._EMIN_RefreshFlyout
+    if not (btn and vis and type(refresh) == "function" and vis[btn] ~= nil) then
+        return false -- not captured; caller falls back to plain Show/Hide
+    end
+    if show then
+        btn:SetAlpha(1)
+        btn:EnableMouse(true)
+        btn:Show()      -- grid closed: Ellesmere's hook re-tracks and keeps it off the map
+        vis[btn] = true -- grid open: the hook skips tracking there, so write it ourselves
+        pcall(refresh)  -- rebuild the grid (immediately if open, else on next open)
+    else
+        vis[btn] = false -- before refresh: an open grid rebuilds right away and must exclude us
+        pcall(refresh)
+        btn:Hide()       -- grid closed: real hide (the hook re-tracks false after refresh's re-show pass)
+        if btn:IsShown() then
+            -- Grid open: the Hide was force-reverted; go invisible in place.
+            -- The rebuild above already compacted the grid around us.
+            btn:SetAlpha(0)
+            btn:EnableMouse(false)
+        end
+        vis[btn] = false
+    end
+    return true
+end
+
 local function CreateMinimapButton()
     if ns.minimapBtn then return end
     local btn = CreateFrame("Button", "WhispyMinimapButton", Minimap)
@@ -495,8 +529,12 @@ function ns.SetMinimapShown(show)
     ns.db.minimap.hide = not show
     if show then
         CreateMinimapButton()
-        if ns.minimapBtn then ns.minimapBtn:Show() end
+        if ns.minimapBtn and not EllesmereSetShown(ns.minimapBtn, true) then
+            ns.minimapBtn:Show()
+        end
     elseif ns.minimapBtn then
-        ns.minimapBtn:Hide()
+        if not EllesmereSetShown(ns.minimapBtn, false) then
+            ns.minimapBtn:Hide()
+        end
     end
 end

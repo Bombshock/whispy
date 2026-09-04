@@ -109,9 +109,11 @@ local function RouteIncoming(info, text, alert)
     win:AddChat("in", info.name, text)
     ns.History:Add(ns.MakeKey(win.info), "in", info.name, text)
     if alert ~= false then Alert(win) end
-    -- Still hidden after the alert: combat (or a window the user closed).
-    -- Count it so the minimap badge can say something arrived.
-    if not win:IsShown() then ns.MarkUnread(win) end
+    -- Still not on screen after the alert: combat, a window the user closed,
+    -- or a background tab in tab mode. Count it so the minimap badge (and the
+    -- tab's own badge) can say something arrived. IsVisible rather than
+    -- IsShown: a tabbed window can be flagged shown while the host is hidden.
+    if not win:IsVisible() then ns.MarkUnread(win) end
     return win
 end
 
@@ -351,11 +353,12 @@ local function OnReplyTell()
         if ct == "WHISPER" or ct == "BN_WHISPER" then return end
     end
     local win = ns.GetWindow(lastIncoming)
-    -- Focus a frame late: the keypress that fired the binding would otherwise
-    -- also arrive in the freshly focused edit box as a typed "r".
-    if ns.ShowWindow(win) then
+    -- "select" so tab mode switches to this conversation's tab. Focus a frame
+    -- late: the keypress that fired the binding would otherwise also arrive in
+    -- the freshly focused edit box as a typed "r".
+    if ns.ShowWindow(win, "select") then
         C_Timer.After(0, function()
-            if win:IsShown() then win.editBox:SetFocus() end
+            if win:IsVisible() then win.editBox:SetFocus() end
         end)
     end
 end

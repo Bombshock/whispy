@@ -60,9 +60,18 @@ local function PositionNew(win)
     cascadeStep = (cascadeStep + 1) % 6
 end
 
+ns.PositionNewWindow = PositionNew   -- Tabs.lua re-places windows leaving tab mode
+
 local function SavePos(win)
     local point, _, relPoint, x, y = win:GetPoint()
     ns.db.lastPos = { point = point, relPoint = relPoint, x = x, y = y }
+end
+
+-- Raise a window; a tabbed window is only a child of the shared tab host, so
+-- the host has to come forward with it.
+local function RaiseWin(win)
+    if win.isTab and ns.TabHost then ns.TabHost:Raise() end
+    win:Raise()
 end
 
 --=========================================================================
@@ -243,66 +252,96 @@ local function DayLabel(epoch)
 end
 
 --=========================================================================
--- Header actions (invite / ignore)
+-- Header action: the game's own character menu
 --
--- Both work on the person the window is talking to, which is either a
--- character on a realm or a Battle.net contact -- each needs its own API.
+-- The same right-click menu the default chat frame shows for a name --
+-- whisper, invite, add friend, ignore, report, copy character name, ... --
+-- built from the same context data the chat frame's own path
+-- (FriendsFrame_ShowDropdown) hands to UnitPopup_OpenMenu, so every entry
+-- behaves exactly as it does from default chat. Except one:
+--
+-- "Copy Character Name" calls CopyToClipboard, which 12.x made a protected
+-- function. From default chat the click runs secure Blizzard code, but a
+-- menu opened by an addon is tainted, so that one entry dies with
+-- ADDON_ACTION_FORBIDDEN (every other entry either works insecurely or, like
+-- Target, hides itself via issecure()). Addons cannot reach the clipboard at
+-- all any more, so the entry's click handler is swapped -- through the menu
+-- system's supported ModifyMenu/SetResponder hooks, which never taint the
+-- surrounding entries -- for a popup holding the name selected, one Ctrl+C
+-- away. Only menus Whispy opened are touched: the swap is keyed on a marker
+-- field in our context data, so chat-opened menus keep the secure original.
 --=========================================================================
 
--- The game account a Battle.net contact is currently playing WoW on, if any.
-local function WoWGameAccount(info)
-    if not (info.presenceID and C_BattleNet and C_BattleNet.GetAccountInfoByID) then return nil end
-    local ai = C_BattleNet.GetAccountInfoByID(info.presenceID)
-    local ga = ai and ai.gameAccountInfo
-    if ga and ga.isOnline and ga.clientProgram == (BNET_CLIENT_WOW or "WoW") and ga.gameAccountID then
-        return ga.gameAccountID
-    end
-    return nil
-end
-
-local function InviteTarget(win)
-    local info = win.info
-    local disp = ns.ShortName(info.name)
-    if info.isBN then
-        local gameAccountID = WoWGameAccount(info)
-        if not gameAccountID then
-            ns.Print(ns.T("inviteOffline", disp))
-            return
-        end
-        if BNInviteFriend then BNInviteFriend(gameAccountID) end
-        return
-    end
-    if C_PartyInfo and C_PartyInfo.InviteUnit then
-        C_PartyInfo.InviteUnit(info.name)
-    else
-        InviteUnit(info.name)
-    end
-end
-
-StaticPopupDialogs["WHISPY_CONFIRM_IGNORE"] = {
+StaticPopupDialogs["WHISPY_COPY_NAME"] = {
     text         = "%s",
-    button1      = YES,
-    button2      = NO,
+    button1      = CLOSE,
+    hasEditBox   = 1,
+    editBoxWidth = 260,
     timeout      = 0,
     whileDead    = true,
     hideOnEscape = true,
-    OnAccept     = function(self, win)
-        local info = win.info
-        local disp = ns.ShortName(info.name)
-        if info.isBN then
-            if info.presenceID and BNSetBlocked then BNSetBlocked(info.presenceID, true) end
-        else
-            C_FriendList.AddIgnore(info.name)
-        end
-        ns.Print(ns.T("ignoredNow", disp))
-        win:Hide()   -- nothing more can arrive here, so get it out of the way
+    OnShow = function(dialog, name)
+        local eb = dialog:GetEditBox()
+        eb:SetText(name or "")
+        eb:HighlightText()
+        eb:SetFocus()
+        eb:SetScript("OnKeyDown", function(box, key)
+            if key == "C" and IsControlKeyDown() then
+                -- next frame, so the native copy finishes before focus is lost
+                C_Timer.After(0, function() box:GetParent():Hide() end)
+            end
+        end)
     end,
+    OnHide = function(dialog)
+        -- the edit box is shared across StaticPopups
+        dialog:GetEditBox():SetScript("OnKeyDown", nil)
+    end,
+    EditBoxOnEnterPressed  = function(eb) eb:GetParent():Hide() end,
+    EditBoxOnEscapePressed = function(eb) eb:GetParent():Hide() end,
 }
 
-local function IgnoreTarget(win)
-    local disp = ns.ShortName(win.info.name)
-    StaticPopup_Show("WHISPY_CONFIRM_IGNORE", ns.T("confirmIgnore", disp), nil, win)
+local function SwapCopyNameEntry(owner, rootDescription, contextData)
+    local name = contextData and contextData.whispyCopyName
+    if not name then return end
+    for _, desc in rootDescription:EnumerateElementDescriptions() do
+        if MenuUtil.GetElementText(desc) == COPY_CHARACTER_NAME then
+            desc:SetResponder(function()
+                StaticPopup_Show("WHISPY_COPY_NAME", ns.T("copyNameHint"), nil, name)
+            end)
+        end
+    end
 end
+
+if Menu and Menu.ModifyMenu then
+    Menu.ModifyMenu("MENU_UNIT_FRIEND", SwapCopyNameEntry)
+    Menu.ModifyMenu("MENU_UNIT_BN_FRIEND", SwapCopyNameEntry)
+end
+
+-- Also reached from the tab strip's burger button (Tabs.lua), which acts on
+-- the active tab's conversation.
+local function OpenCharacterMenu(win)
+    local info = win.info
+    if not UnitPopup_OpenMenu then return end
+    if info.isBN then
+        if not info.presenceID then return end
+        UnitPopup_OpenMenu("BN_FRIEND", {
+            name = info.name,
+            chatType = "BN_WHISPER",
+            chatTarget = info.name,
+            bnetIDAccount = info.presenceID,
+            whispyCopyName = info.name,
+        })
+    else
+        -- full Name-Realm is fine: OpenMenu splits name and server itself
+        UnitPopup_OpenMenu("FRIEND", {
+            name = info.name,
+            chatType = "WHISPER",
+            chatTarget = info.name,
+            whispyCopyName = info.name,
+        })
+    end
+end
+ns.OpenCharacterMenu = OpenCharacterMenu
 
 local function CreateWindow(key, info)
     local db = ns.db
@@ -341,6 +380,7 @@ local function CreateWindow(key, info)
     accent:SetColorTexture(P.accent[1], P.accent[2], P.accent[3], 0.55)
     accent:SetPoint("TOPLEFT", win, "TOPLEFT", 1, -(HEADER_H + 1))
     accent:SetPoint("TOPRIGHT", win, "TOPRIGHT", -1, -(HEADER_H + 1))
+    win.accent = accent
 
     -- source icon -- class portrait for in-game characters, Battle.net client
     -- icon for BN contacts. Filled in by UpdateHeader once info is known.
@@ -358,36 +398,39 @@ local function CreateWindow(key, info)
     title:SetWordWrap(false)
     win.title = title
 
-    -- quick actions on the person we are talking to. They sit right after the
-    -- name (the title is sized to its text by win:LayoutHeader) so they read as
-    -- belonging to it rather than to the window.
-    local function MakeHeaderBtn(label, tipKey, onClick)
-        local b = ns.MakeFlatBtn(header, label, 10, HEADER_H - 10)
-        b:SetWidth(math.max(26, b.label:GetStringWidth() + 12))
-        b:SetScript("OnClick", function() onClick(win) end)
-        -- MakeFlatBtn owns OnEnter/OnLeave for the hover colours, so the
-        -- tooltip has to be chained onto them rather than replace them.
-        local enter, leave = b:GetScript("OnEnter"), b:GetScript("OnLeave")
-        b:SetScript("OnEnter", function(self)
-            enter(self)
-            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-            GameTooltip:AddLine(ns.T(tipKey, ns.ShortName(win.info.name)), 1, 1, 1)
-            GameTooltip:Show()
-        end)
-        b:SetScript("OnLeave", function(self)
-            leave(self)
-            GameTooltip:Hide()
-        end)
-        return b
+    -- burger button right after the name (the title is sized to its text by
+    -- win:LayoutHeader) -- opens the character menu for the person we are
+    -- talking to. Drawn as three stacked lines: the fonts have no reliable
+    -- burger glyph.
+    local menuBtn = ns.MakeFlatBtn(header, "", 20, HEADER_H - 10)
+    menuBtn:SetPoint("LEFT", title, "RIGHT", 6, 0)
+    menuBtn.lines = {}
+    for i = -1, 1 do
+        local line = menuBtn:CreateTexture(nil, "OVERLAY")
+        line:SetSize(9, 1)
+        line:SetColorTexture(P.text[1], P.text[2], P.text[3], 0.9)
+        line:SetPoint("CENTER", menuBtn, "CENTER", 0, i * 3)
+        menuBtn.lines[#menuBtn.lines + 1] = line
     end
-
-    local invite = MakeHeaderBtn(ns.T("btnInvite"), "tipInvite", InviteTarget)
-    invite:SetPoint("LEFT", title, "RIGHT", 6, 0)
-    win.invite = invite
-
-    local ignore = MakeHeaderBtn(ns.T("btnIgnore"), "tipIgnore", IgnoreTarget)
-    ignore:SetPoint("LEFT", invite, "RIGHT", 4, 0)
-    win.ignore = ignore
+    menuBtn:SetScript("OnClick", function() OpenCharacterMenu(win) end)
+    -- MakeFlatBtn owns OnEnter/OnLeave for the hover colours, so the tooltip
+    -- and line highlight have to be chained onto them rather than replace them.
+    local enter, leave = menuBtn:GetScript("OnEnter"), menuBtn:GetScript("OnLeave")
+    menuBtn:SetScript("OnEnter", function(self)
+        enter(self)
+        for _, line in ipairs(self.lines) do line:SetColorTexture(1, 1, 1, 1) end
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine(ns.T("tipMenu", ns.ShortName(win.info.name)), 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    menuBtn:SetScript("OnLeave", function(self)
+        leave(self)
+        for _, line in ipairs(self.lines) do
+            line:SetColorTexture(P.text[1], P.text[2], P.text[3], 0.9)
+        end
+        GameTooltip:Hide()
+    end)
+    win.menuBtn = menuBtn
 
     -- close button
     local close = CreateFrame("Button", nil, header)
@@ -399,19 +442,35 @@ local function CreateWindow(key, info)
     closeLbl:SetText("|cff777799x|r")
     close:SetScript("OnEnter", function() closeLbl:SetText("|cffee6666x|r") end)
     close:SetScript("OnLeave", function() closeLbl:SetText("|cff777799x|r") end)
-    close:SetScript("OnClick", function() win:Hide() end)
+    close:SetScript("OnClick", function()
+        -- in tab mode "close" means close this tab, not just hide the frame
+        if win.isTab and ns.CloseTab then
+            ns.CloseTab(win)
+        else
+            win:Hide()
+        end
+    end)
 
-    -- drag via header
+    -- drag via header (drags the shared tab host instead while tabbed)
     header:EnableMouse(true)
     header:RegisterForDrag("LeftButton")
-    header:SetScript("OnMouseDown", function() win:Raise() end)
+    header:SetScript("OnMouseDown", function() RaiseWin(win) end)
     header:SetScript("OnDragStart", function()
-        win:Raise()
-        win:StartMoving()
+        RaiseWin(win)
+        if win.isTab and ns.TabHost then
+            ns.TabHost:StartMoving()
+        else
+            win:StartMoving()
+        end
     end)
     header:SetScript("OnDragStop", function()
-        win:StopMovingOrSizing()
-        SavePos(win)
+        if win.isTab and ns.TabHost then
+            ns.TabHost:StopMovingOrSizing()
+            ns.SaveTabHostPos()
+        else
+            win:StopMovingOrSizing()
+            SavePos(win)
+        end
     end)
 
     ------------------------------------------------------------------ footer
@@ -517,10 +576,10 @@ local function CreateWindow(key, info)
     -- Clicking the body only raises the window: clicks on the message list
     -- belong to text selection now, so they must not pull focus into the
     -- input. Clicking the input strip still focuses it.
-    win:SetScript("OnMouseDown", function() win:Raise() end)
+    win:SetScript("OnMouseDown", function() RaiseWin(win) end)
     ebHolder:EnableMouse(true)
     ebHolder:SetScript("OnMouseDown", function()
-        win:Raise()
+        RaiseWin(win)
         eb:SetFocus()
     end)
 
@@ -535,13 +594,22 @@ local function CreateWindow(key, info)
     grip:SetHighlightTexture("Interface/ChatFrame/UI-ChatIM-SizeGrabber-Highlight")
     grip:SetPushedTexture("Interface/ChatFrame/UI-ChatIM-SizeGrabber-Down")
     grip:SetScript("OnMouseDown", function()
-        win:Raise()
-        win:StartSizing("BOTTOMRIGHT")
+        RaiseWin(win)
+        if win.isTab and ns.TabHost then
+            ns.TabHost:StartSizing("BOTTOMRIGHT")   -- the host owns the size
+        else
+            win:StartSizing("BOTTOMRIGHT")
+        end
     end)
     grip:SetScript("OnMouseUp", function()
-        win:StopMovingOrSizing()
-        ns.db.winWidth = win:GetWidth()
-        ns.db.winHeight = win:GetHeight()
+        if win.isTab and ns.TabHost then
+            ns.TabHost:StopMovingOrSizing()
+            ns.SaveTabHostSize()
+        else
+            win:StopMovingOrSizing()
+            ns.db.winWidth = win:GetWidth()
+            ns.db.winHeight = win:GetHeight()
+        end
     end)
 
     -- re-flow bubbles whenever the window width changes
@@ -552,13 +620,24 @@ local function CreateWindow(key, info)
 
     ------------------------------------------------------------------ methods
 
+    -- Tab mode strips the window's own header: the active tab already shows
+    -- the name, and the burger/close live in the tab strip (Tabs.lua). The
+    -- message list is re-anchored to take over the freed space.
+    function win:SetTabChrome(tabbed)
+        local top = tabbed and 6 or LIST_TOP
+        self.header:SetShown(not tabbed)
+        self.accent:SetShown(not tabbed)
+        self.scrollFrame:SetPoint("TOPLEFT", self, "TOPLEFT", MSG_PAD, -top)
+        self.track:SetPoint("TOPRIGHT", self, "TOPRIGHT", -3, -top)
+        self:ScrollToBottom()
+    end
+
     -- Size the title to its own text so the action buttons sit right after the
     -- name, but never let it push them under the close button.
     function win:LayoutHeader()
         local avail = self.header:GetWidth()
                     - 28                                  -- left margin + icon + gap
-                    - (self.invite:GetWidth() + 6)
-                    - (self.ignore:GetWidth() + 4)
+                    - (self.menuBtn:GetWidth() + 6)
                     - 32                                  -- close button + gap
         local fs = self.title
         -- kstring titles measure as ~zero width even though they render as a
@@ -589,6 +668,8 @@ local function CreateWindow(key, info)
             self.title:SetText(ns.Hex(P.text[1], P.text[2], P.text[3]) .. disp .. "|r")
         end
         self:LayoutHeader()
+        -- the tab carrying this conversation shows the same name and colour
+        if self.isTab and ns.RefreshTabStrip then ns.RefreshTabStrip() end
     end
 
     -- Recompute thumb size/position from content vs viewport.
@@ -762,6 +843,8 @@ ns.unreadTotal = 0
 local function BadgeChanged()
     -- ChatList.lua owns the visuals and may not have built the button yet.
     if ns.UpdateMinimapBadge then ns.UpdateMinimapBadge() end
+    -- background tabs carry their own unread badges (Tabs.lua)
+    if ns.RefreshTabStrip then ns.RefreshTabStrip() end
 end
 
 function ns.MarkUnread(win)
@@ -809,20 +892,33 @@ local function DefuseWhisperEditBox()
 end
 
 -- Show a window, unless we are in combat -- then queue it for after combat.
--- Returns true if actually shown now.
+-- focus=true also moves keyboard focus into its edit box; focus="select"
+-- brings the conversation forward (in tab mode: switches to its tab) without
+-- touching the keyboard. Returns true if the conversation is on screen now
+-- (a tab-mode arrival behind another active tab returns false).
 function ns.ShowWindow(win, focus)
     if ns.inCombat and ns.db.combatHide then
         ns.QueueCombatRestore(win)
         return false
     end
-    if not win:IsShown() then win:Show() end
-    win:Raise()
-    if focus then
+    local shownNow
+    if ns.db.tabMode and ns.TabShow then
+        shownNow = ns.TabShow(win, focus and true or false)
+    else
+        -- a window still attached from tab mode (a closed tab) detaches lazily
+        if win.isTab and ns.DetachTabWindow then ns.DetachTabWindow(win) end
+        if not win:IsShown() then win:Show() end
+        win:Raise()
+        shownNow = true
+    end
+    if shownNow and focus == true then
         DefuseWhisperEditBox()
         win.editBox:SetFocus()
     end
-    return true
+    return shownNow
 end
+
+local tabHostRestore = false   -- the tab-mode window was up when combat began
 
 local combatFrame = CreateFrame("Frame")
 combatFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
@@ -831,26 +927,43 @@ combatFrame:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_REGEN_DISABLED" then
         ns.inCombat = true
         if not ns.db.combatHide then return end
+        -- In tab mode the shared host is the one thing on screen: hiding it
+        -- takes the active tab with it, and the whole tab set survives
+        -- untouched underneath for the restore.
+        if ns.TabHost and ns.TabHost:IsShown() then
+            tabHostRestore = true
+            ns.TabHost:Hide()
+        end
         for key, win in pairs(ns.Windows) do
-            if win:IsShown() then
+            if not win.isTab and win:IsShown() then
                 combatRestore[key] = true
                 win:Hide()
             end
         end
     else -- PLAYER_REGEN_ENABLED
         ns.inCombat = false
-        for key in pairs(combatRestore) do
-            local win = ns.Windows[key]
-            if win then win:Show() end
-        end
+        local queued = {}
+        for key in pairs(combatRestore) do queued[#queued + 1] = key end
         wipe(combatRestore)
+        -- the host first, so whispers queued during combat come back as
+        -- background tabs instead of stealing the previously active one
+        if tabHostRestore then
+            tabHostRestore = false
+            if ns.ShowTabHost then ns.ShowTabHost() end
+        end
+        for _, key in ipairs(queued) do
+            local win = ns.Windows[key]
+            if win then ns.ShowWindow(win) end
+        end
     end
 end)
 
 -- Hide every conversation window (and drop any pending combat restores).
 function ns.HideAllWindows()
+    if ns.CloseAllTabs then ns.CloseAllTabs() end
     for _, win in pairs(ns.Windows) do win:Hide() end
     wipe(combatRestore)
+    tabHostRestore = false
 end
 
 -- Re-read stored history into every existing window.
@@ -881,12 +994,24 @@ function ns.ListWindows()
     local n = 0
     for _, key in ipairs(openOrder) do
         local win = ns.Windows[key]
-        if win and win:IsShown() then
+        -- a background tab is hidden but still an open conversation
+        if win and (win:IsShown() or (ns.IsOpenTab and ns.IsOpenTab(key))) then
             n = n + 1
             ns.Print("  " .. ns.ShortName(win.info.name))
         end
     end
     if n == 0 then ns.Print(ns.T("noOpenConvos")) end
+end
+
+-- Currently shown windows, in the order their conversations were opened
+-- (Tabs.lua converts them when tab mode is switched on).
+function ns.ShownWindows()
+    local out = {}
+    for _, key in ipairs(openOrder) do
+        local win = ns.Windows[key]
+        if win and win:IsShown() then out[#out + 1] = win end
+    end
+    return out
 end
 
 --=========================================================================

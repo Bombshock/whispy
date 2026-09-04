@@ -20,13 +20,11 @@ ns.locales.deDE = {
     tipDrag     = "|cffaaaaaaZiehen:|r Button verschieben",
     tipUnread   = "|cffff6666%d ungelesen|r",
 
-    btnInvite     = "Einladen",
-    btnIgnore     = "Ignorieren",
-    tipInvite     = "%s in die Gruppe einladen",
-    tipIgnore     = "%s ignorieren und dieses Fenster schließen",
-    confirmIgnore = "%s ignorieren? Du erhältst dann keine Flüsternachrichten mehr von dieser Person.",
-    inviteOffline = "%s ist nicht in World of Warcraft online.",
-    ignoredNow    = "%s wird jetzt ignoriert.",
+    tipMenu       = "Optionen für %s",
+    copyNameHint  = "Strg + C drücken, um den Namen zu kopieren",
+
+    tipTabClose = "|cffaaaaaaMittelklick:|r Tab schließen",
+    tipMoreTabs = "Weitere Unterhaltungen",
 
     -- German writes the day first and drops the comma
     dateFmt      = "%d. %B %Y",
@@ -57,9 +55,9 @@ ns.locales.deDE = {
     menuHistory = "Verlauf",
     menuOptions = "Optionen",
 
-    optTitle      = "Whispy-Optionen",
     optGeneral    = "Allgemein",
     optRouting    = "Flüsternachrichten in Whispy anzeigen",
+    optTabMode    = "Tab-Modus -- alle Chats in einem Fenster",
     optCombatHide = "Fenster im Kampf ausblenden",
     optMinimapBtn = "Minikarten-Button anzeigen",
     optSounds     = "Töne",
