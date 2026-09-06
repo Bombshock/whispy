@@ -2,6 +2,16 @@
 
 All notable changes to Whispy are documented here.
 
+## [1.8] - 2026-09-06
+
+### Added
+- Hovering an inactive tab reveals its close x.
+- The unread badge steps aside while the close x is shown.
+- The burger menu gains a "Who" entry below Copy Character Name that runs `/who` on the character.
+
+### Changed
+- The burger menu no longer offers "Move to Whisper Window", which is pointless from inside Whispy.
+
 ## [1.7] - 2026-09-05
 
 ### Added

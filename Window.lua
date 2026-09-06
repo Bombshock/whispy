@@ -312,9 +312,34 @@ local function SwapCopyNameEntry(owner, rootDescription, contextData)
     end
 end
 
+-- Whispy-only extra: a "Who" entry right below Copy Character Name that runs
+-- the equivalent of "/who <character>" (results land in chat, same as the
+-- slash command). Character whispers only -- /who cannot look up Battle.net
+-- tags, so this is not registered for MENU_UNIT_BN_FRIEND.
+local function AddWhoEntry(owner, rootDescription, contextData)
+    local name = contextData and contextData.whispyCopyName
+    if not name then return end
+    local character = name:match("^[^%-]+") or name
+    local who = MenuUtil.CreateButton(WHO or "Who", function()
+        C_FriendList.SendWho(character, Enum.SocialWhoOrigin.Chat)
+    end)
+    local count = 0
+    for index, desc in rootDescription:EnumerateElementDescriptions() do
+        count = index
+        if MenuUtil.GetElementText(desc) == COPY_CHARACTER_NAME then
+            rootDescription:Insert(who, index + 1)
+            return
+        end
+    end
+    -- Copy Character Name not found (renamed by a patch?): slot in above the
+    -- trailing Cancel entry instead of after it.
+    rootDescription:Insert(who, count > 0 and count or nil)
+end
+
 if Menu and Menu.ModifyMenu then
     Menu.ModifyMenu("MENU_UNIT_FRIEND", SwapCopyNameEntry)
     Menu.ModifyMenu("MENU_UNIT_BN_FRIEND", SwapCopyNameEntry)
+    Menu.ModifyMenu("MENU_UNIT_FRIEND", AddWhoEntry)
 end
 
 -- Also reached from the tab strip's burger button (Tabs.lua), which acts on
@@ -322,12 +347,15 @@ end
 local function OpenCharacterMenu(win)
     local info = win.info
     if not UnitPopup_OpenMenu then return end
+    -- No chatType/chatTarget on purpose: in the whole Blizzard UI they feed
+    -- only the "Move to Whisper Window" entry (UnitPopupPopoutChatButtonMixin
+    -- :CanShow), which is pointless from inside Whispy -- omitting them is the
+    -- one clean way to drop that entry, since the Menu API can't remove
+    -- elements.
     if info.isBN then
         if not info.presenceID then return end
         UnitPopup_OpenMenu("BN_FRIEND", {
             name = info.name,
-            chatType = "BN_WHISPER",
-            chatTarget = info.name,
             bnetIDAccount = info.presenceID,
             whispyCopyName = info.name,
         })
@@ -335,8 +363,6 @@ local function OpenCharacterMenu(win)
         -- full Name-Realm is fine: OpenMenu splits name and server itself
         UnitPopup_OpenMenu("FRIEND", {
             name = info.name,
-            chatType = "WHISPER",
-            chatTarget = info.name,
             whispyCopyName = info.name,
         })
     end

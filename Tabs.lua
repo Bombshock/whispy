@@ -192,6 +192,23 @@ end
 -- Tab buttons
 --=========================================================================
 
+-- A tab's right edge holds either the close x or the unread badge. The x is
+-- always up on the active tab and revealed on hover elsewhere (so it can't be
+-- hit by accident while switching); the badge yields while the x is up.
+local function UpdateTabRight(tab)
+    local showClose = tab.isActive or tab:IsMouseOver()
+    tab.close:SetShown(showClose)
+    local badge = tab.badge
+    if tab.hasUnread and not showClose then
+        badge:Show()
+        if not badge.pulse:IsPlaying() then badge.pulse:Play() end
+    else
+        badge.pulse:Stop()
+        badge:SetAlpha(1)
+        badge:Hide()
+    end
+end
+
 local function MakeTab()
     local strip = host.strip
     local tab = CreateFrame("Button", nil, strip, "BackdropTemplate")
@@ -222,8 +239,7 @@ local function MakeTab()
     label:SetWordWrap(false)
     tab.label = label
 
-    -- close x, shown on the active tab only (background tabs close by
-    -- middle-click, so their x can't be hit by accident while switching)
+    -- close x (see UpdateTabRight for when it shows; middle-click closes too)
     local close = CreateFrame("Button", nil, tab)
     close:SetSize(14, TAB_H)
     close:SetPoint("RIGHT", tab, "RIGHT", -2, 0)
@@ -233,7 +249,13 @@ local function MakeTab()
     cl:SetJustifyH("CENTER")
     cl:SetText("|cff777799x|r")
     close:SetScript("OnEnter", function() cl:SetText("|cffee6666x|r") end)
-    close:SetScript("OnLeave", function() cl:SetText("|cff777799x|r") end)
+    close:SetScript("OnLeave", function()
+        cl:SetText("|cff777799x|r")
+        if tab:IsMouseOver() then return end   -- back onto the tab body
+        UpdateTabRight(tab)
+        local bg = (tab.key == activeKey) and P.header or P.tabBg
+        tab:SetBackdropColor(bg[1], bg[2], bg[3], bg[4])
+    end)
     close:SetScript("OnClick", function()
         local win = tab.key and ns.Windows[tab.key]
         if win then ns.CloseTab(win) end
@@ -283,6 +305,7 @@ local function MakeTab()
         if self.key ~= activeKey then
             self:SetBackdropColor(P.btnBg[1], P.btnBg[2], P.btnBg[3], P.btnBg[4])
         end
+        UpdateTabRight(self)
         local win = self.key and ns.Windows[self.key]
         if win then
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -293,6 +316,8 @@ local function MakeTab()
     end)
     tab:SetScript("OnLeave", function(self)
         GameTooltip:Hide()
+        if self:IsMouseOver() then return end   -- moved onto the close x
+        UpdateTabRight(self)
         local bg = (self.key == activeKey) and P.header or P.tabBg
         self:SetBackdropColor(bg[1], bg[2], bg[3], bg[4])
     end)
@@ -510,25 +535,21 @@ function LayoutTabs()
         tab.label:SetText(win and ColoredName(win.info) or "?")
         if win then ns.SetSourceIcon(tab.icon, win.info) end
         local active = (key == activeKey)
+        tab.isActive = active
         tab.accent:SetShown(active)
-        tab.close:SetShown(active)
         tab.label:SetAlpha(active and 1 or 0.6)
         tab.icon:SetAlpha(active and 1 or 0.6)
         local bg = active and P.header or P.tabBg
         tab:SetBackdropColor(bg[1], bg[2], bg[3], bg[4])
 
         local unread = (not active) and ns.unread[key] or nil
-        local badge = tab.badge
-        if unread and unread > 0 then
+        tab.hasUnread = (unread and unread > 0) or false
+        if tab.hasUnread then
+            local badge = tab.badge
             badge.count:SetText(unread > 99 and "99+" or tostring(unread))
             badge:SetWidth(math.max(14, math.ceil(badge.count:GetStringWidth()) + 8))
-            badge:Show()
-            if not badge.pulse:IsPlaying() then badge.pulse:Play() end
-        else
-            badge.pulse:Stop()
-            badge:SetAlpha(1)
-            badge:Hide()
         end
+        UpdateTabRight(tab)
         tab:Show()
         x = x + w + TAB_GAP
     end
