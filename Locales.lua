@@ -59,6 +59,7 @@ ns.locales.deDE = {
     optRouting    = "Flüsternachrichten in Whispy anzeigen",
     optTabMode    = "Tab-Modus -- alle Chats in einem Fenster",
     optCombatHide = "Fenster im Kampf ausblenden",
+    optCombatChat = "Flüsternachrichten im Kampf im Chatfenster anzeigen",
     optMinimapBtn = "Minikarten-Button anzeigen",
     optSounds     = "Töne",
     optSndIn      = "Ton abspielen, wenn eine Nachricht eintrifft",
@@ -130,4 +131,8 @@ ns.locales.deDE = {
     noOpenConvos = "Keine offenen Unterhaltungen.",
     demoRunning  = "Beispielunterhaltung läuft (simuliert, es wird nichts gesendet)...",
     ssOff        = "Screenshot-Modus %s -- deine Chats sind zurück.",
+
+    whisperModeText   = "Whispy: Der Flüstermodus des Spiels öffnet für jede Flüsternachricht einen eigenen Chat-Tab. Da Whispy die Nachrichten übernimmt, bleiben diese Tabs leer.\n\nFlüstermodus auf \"Im Chatfenster\" umstellen?",
+    whisperModeAccept = "Umstellen",
+    whisperModeLater  = "So lassen",
 }

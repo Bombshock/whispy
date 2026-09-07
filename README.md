@@ -1,6 +1,6 @@
 # Whispy
 
-![Whispy logo](logo.png)
+![Whispy logo](assets/logo.png)
 
 ## TL;DR
 
@@ -28,7 +28,10 @@ It handles both regular and BattleNet whispers, follows every route the game use
 - **Live hyperlinks in messages** — links inside bubbles show their tooltip on hover and open on click, exactly like the default chat
 - **Selectable text** — drag across any message to mark part of a line and Ctrl+C it, the way you would anywhere else; colour codes and hyperlink markup are stripped, so what you paste is what you read
 - **AFK / DND replies** — auto-replies from someone you whispered appear as a system line in their conversation, but only if the window already exists
-- **Combat-aware** — windows hide when you enter combat, reappear when you leave, and whispers that arrive mid-fight are queued rather than dropped
+- **Combat-aware** — windows hide when you enter combat, reappear when you leave, and whispers that arrive mid-fight are queued rather than dropped; by default they also stay visible in the chat frame meanwhile, so nothing goes unseen
+- **Reply keys work** — the game's Reply key, its reply-to-last-told key, and `/r` in the default chat box all open the right Whispy conversation, even though the chat frame never showed the whisper
+- **Lockdown recovery** — a whisper the game delivers as a 12.x secret value stays in the chat frame for now and is filed into its window and history once the chat lockdown lifts
+- **Whisper Mode check** — if the game's Whisper Mode would open a separate chat tab per whisper (which Whispy would leave empty), a one-time prompt offers to switch it to in-line
 - **Minimap button** — left-click for a recent-chats flyout, right-click for a menu with History and Options, drag to reposition around the minimap
 - **Chat list with previews** — every stored conversation, newest first, with a class-coloured name, a relative timestamp (`now`, `5m`, `3h`, `2d`), and a preview of the last line
 - **Resizable, movable, remembered** — drag by the header, resize by the grip, and the size and last position carry over to the next window you open
@@ -40,7 +43,7 @@ It handles both regular and BattleNet whispers, follows every route the game use
 
 ## Screenshots
 
-![Whispy conversation windows](screenshot-1.png)
+![Whispy conversation windows](assets/screenshot-1.png)
 
 ## Slash commands
 

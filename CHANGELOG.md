@@ -8,9 +8,21 @@ All notable changes to Whispy are documented here.
 - Battle.net whispers no longer vanish when the game delivers part of the message as a 12.x secret value.
 - A whisper whose text or sender can't be routed now stays visible in the default chat frame instead of being lost.
 - If routing a whisper fails unexpectedly, the raw line is echoed to the default chat frame as a safety net.
+- `/r` typed into the default chat box now reaches the last whisper's conversation.
+- The game's reply-to-last-told key now opens the conversation of the last player you whispered.
+- The Reply key no longer leaves an empty default chat box open behind the Whispy window.
 
 ### Added
 - Whispering an offline Battle.net friend now shows the "player is offline" notice inside the conversation window.
+- New option "Show whispers in the chat frame while in combat", on by default.
+- With it on, whispers stay visible in the chat frame while Whispy's windows are hidden for combat.
+- Whispy's own sound and flash stay quiet then, since the chat frame already announces the whisper.
+- Whispers that arrive as 12.x secret values are recovered into their window and history once the chat lockdown lifts.
+- Recovered lines keep the time they actually arrived.
+- On first login with the game's Whisper Mode set to pop-out, a prompt offers to switch it to in-line.
+
+### Changed
+- Logo and screenshot moved into an `assets/` folder.
 
 ## [1.8] - 2026-09-06
 

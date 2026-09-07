@@ -235,6 +235,7 @@ ns.strings = {
     optRouting    = "Route whispers into Whispy",
     optTabMode    = "Tab mode -- all chats in one window",
     optCombatHide = "Hide windows during combat",
+    optCombatChat = "Show whispers in the chat frame while in combat",
     optMinimapBtn = "Show the minimap button",
     optSounds     = "Sounds",
     optSndIn      = "Play a sound when a whisper arrives",
@@ -309,6 +310,11 @@ ns.strings = {
     noOpenConvos = "no open conversations.",
     demoRunning  = "running demo conversation (simulated, nothing sent)...",
     ssOff        = "screenshot mode %s -- your chats are back.",
+
+    -- whisper-mode prompt (StaticPopup)
+    whisperModeText   = "Whispy: the game's Whisper Mode opens a separate chat tab for every whisper. With Whispy handling whispers, those tabs stay empty.\n\nSwitch Whisper Mode to In-line?",
+    whisperModeAccept = "Switch to In-line",
+    whisperModeLater  = "Keep as is",
 }
 
 ns.locales = {}   -- [locale] = { key = "translation", ... }
@@ -354,6 +360,7 @@ local defaults = {
     enabled       = true,   -- route whispers into Whispy windows (suppress default chat)
     tabMode       = false,  -- all conversations as tabs in one shared window (Tabs.lua)
     combatHide    = true,   -- hide windows on entering combat, restore afterwards
+    combatChat    = true,   -- ...and leave the chat-frame copy visible meanwhile
     sound         = {       -- alert sounds (see Sound.lua)
         incoming    = true,             -- play a sound when a whisper arrives
         incomingKey = "TELL_MESSAGE",

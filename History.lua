@@ -7,7 +7,9 @@ local History = {}
 ns.History = History
 
 -- Append a line. dir = "in" | "out". who = display name (for incoming), may be nil.
-function History:Add(key, dir, who, text)
+-- t = original time of the line; defaults to now (lines recovered after a
+-- chat lockdown pass the time they actually arrived).
+function History:Add(key, dir, who, text, t)
     local db = ns.db
     if not db then return end
     local list = db.history[key]
@@ -15,7 +17,7 @@ function History:Add(key, dir, who, text)
         list = {}
         db.history[key] = list
     end
-    list[#list + 1] = { t = time(), dir = dir, who = who, text = text }
+    list[#list + 1] = { t = t or time(), dir = dir, who = who, text = text }
 
     -- Trim to the configured cap (drop oldest).
     local limit = db.historyLimit or 200

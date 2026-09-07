@@ -308,6 +308,9 @@ do
     Check("optCombatHide",
         function() return db().combatHide end,
         function(v) db().combatHide = v end)
+    w.cCombatChat = Check("optCombatChat",
+        function() return db().combatChat end,
+        function(v) db().combatChat = v end, INDENT)
     Check("optMinimapBtn",
         function() return not db().minimap.hide end,
         function(v) ns.SetMinimapShown(v) end)
@@ -344,10 +347,12 @@ do
 end
 
 -- Re-read every widget from the DB, applying the parent/child enable rules:
--- a sound picker is only live while the option it belongs to is on.
+-- a sound picker is only live while the option it belongs to is on, and the
+-- combat chat-copy option only matters while windows hide in combat.
 function ns.RefreshOptions()
     if not ns.db then return end   -- shown before ADDON_LOADED can't happen, but cheap
     local s = ns.db.sound
+    win.cCombatChat:SetEnabledState(ns.db.combatHide)
     win.ddIn:SetEnabledState(s.incoming)
     win.cBnet:SetEnabledState(s.incoming)
     win.ddBnet:SetEnabledState(s.incoming and s.bnet)

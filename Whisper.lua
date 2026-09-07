@@ -91,7 +91,19 @@ ns.BNName = BNName
 -- Incoming / outgoing routing (fires once per event)
 --=========================================================================
 
+-- While combat hides the windows, the combatChat option leaves the default
+-- chat copy of each whisper visible, so nothing arrives unseen mid-fight.
+local function ChatCopyShown()
+    return ns.inCombat and ns.db.combatHide and ns.db.combatChat
+end
+
 local function Alert(win)
+    if ChatCopyShown() then
+        -- The default chat frame is showing this whisper itself, with the
+        -- game's own tell sound and taskbar flash; only queue the window.
+        ns.ShowWindow(win)
+        return
+    end
     ns.AlertSound("in", win.info)
     -- ShowWindow keeps the window hidden (and queues it) while in combat.
     if ns.ShowWindow(win) and not win:IsMouseOver() then
@@ -99,20 +111,48 @@ local function Alert(win)
     end
 end
 
+-- The game records a whisper in its reply memory only after a chat frame has
+-- displayed it, and Whispy suppresses that display. Mirror the record so the
+-- game's own reply paths keep working: the Reply key, the reply-to-last-told
+-- key, and "/r" typed into the default edit box. Each of them then puts the
+-- edit box into whisper mode, where the UpdateHeader hook below takes over.
+-- `name` is the raw event author/target, exactly what the game would store.
+local function RememberTell(name, isBN, told)
+    if IsSecret(name) or type(name) ~= "string" or name == "" then return end
+    local setter
+    if ChatFrameUtil then
+        setter = told and ChatFrameUtil.SetLastToldTarget or ChatFrameUtil.SetLastTellTarget
+    else
+        setter = told and ChatEdit_SetLastToldTarget or ChatEdit_SetLastTellTarget
+    end
+    if type(setter) ~= "function" then return end
+    -- The game's list can hold secret names from lockdown whispers it displayed
+    -- itself; comparing our plain name against one of those throws.
+    pcall(setter, name, isBN and "BN_WHISPER" or "WHISPER")
+end
+
 -- Shared routing core. Both the live event handlers and the /whispy test
 -- simulator go through these two functions, so there is one code path.
 
--- Conversation descriptor of the most recent incoming whisper, for the Reply
--- keybinding. Session-only, like the default UI's own last-teller memory.
-local lastIncoming
+-- Conversation descriptors of the most recent incoming and outgoing whisper,
+-- the fallback for the reply hooks below when the game's own memory is empty.
+-- Session-only, like the default UI's own last-teller memory.
+local lastIncoming, lastOutgoing
 
 -- info = { name=, isBN=, presenceID=, guid= }
-local function RouteIncoming(info, text, alert)
+-- alert: nil/true = sound, window and flash; "quiet" = window only (used for
+-- lines recovered after a lockdown, which the chat frame already announced);
+-- false = record only. epoch: original time of a recovered line.
+local function RouteIncoming(info, text, alert, epoch)
     local win = ns.GetWindow(info)
     lastIncoming = win.info
-    win:AddChat("in", info.name, text)
-    ns.History:Add(ns.MakeKey(win.info), "in", info.name, text)
-    if alert ~= false then Alert(win) end
+    win:AddChat("in", info.name, text, epoch)
+    ns.History:Add(ns.MakeKey(win.info), "in", info.name, text, epoch)
+    if alert == "quiet" then
+        ns.ShowWindow(win)
+    elseif alert ~= false then
+        Alert(win)
+    end
     -- Still not on screen after the alert: combat, a window the user closed,
     -- or a background tab in tab mode. Count it so the minimap badge (and the
     -- tab's own badge) can say something arrived. IsVisible rather than
@@ -121,11 +161,12 @@ local function RouteIncoming(info, text, alert)
     return win
 end
 
-local function RouteOutgoing(info, text)
+local function RouteOutgoing(info, text, quiet, epoch)
     local win = ns.GetWindow(info)
-    win:AddChat("out", nil, text)
-    ns.History:Add(ns.MakeKey(win.info), "out", nil, text)
-    ns.AlertSound("out", win.info)
+    lastOutgoing = win.info
+    win:AddChat("out", nil, text, epoch)
+    ns.History:Add(ns.MakeKey(win.info), "out", nil, text, epoch)
+    if not quiet then ns.AlertSound("out", win.info) end
     ns.ShowWindow(win)
     return win
 end
@@ -143,6 +184,7 @@ end
 function handlers.CHAT_MSG_WHISPER(...)
     local text, author = ...
     local guid = UsableGUID(select(12, ...))
+    RememberTell(author, false)
     RouteIncoming({ name = author, isBN = false, guid = guid }, text)
 end
 
@@ -150,6 +192,7 @@ end
 function handlers.CHAT_MSG_WHISPER_INFORM(...)
     local text, target = ...
     local guid = UsableGUID(select(12, ...))
+    RememberTell(target, false, true)
     RouteOutgoing({ name = target, isBN = false, guid = guid }, text)
 end
 
@@ -157,6 +200,7 @@ end
 function handlers.CHAT_MSG_BN_WHISPER(...)
     local text, author = ...
     local presenceID = UsableBNetID(select(13, ...), author)
+    RememberTell(author, true)
     RouteIncoming({ name = BNName(presenceID, author), isBN = true, presenceID = presenceID }, text)
 end
 
@@ -164,6 +208,7 @@ end
 function handlers.CHAT_MSG_BN_WHISPER_INFORM(...)
     local text, target = ...
     local presenceID = UsableBNetID(select(13, ...), target)
+    RememberTell(target, true, true)
     RouteOutgoing({ name = BNName(presenceID, target), isBN = true, presenceID = presenceID }, text)
 end
 
@@ -239,13 +284,101 @@ local function Routable(...)
     return not (IsSecret(text) or IsSecret(name))
 end
 
+--=========================================================================
+-- Lockdown recovery -- a whisper that arrives with a secret text or sender
+-- stays in the default chat frame (above), but it is also remembered by its
+-- chat line ID. Once the lockdown lifts, the client hands the plain text and
+-- sender back through C_ChatInfo.GetChatLine*, and the line is routed into
+-- its window and history after all -- quietly, since the chat frame already
+-- announced it. Lines you sent can only be filed when their target was plain.
+--=========================================================================
+local pending = {}     -- { event=, lineID=, t=, name=, guid=, presenceID= }
+local drainTicker
+
+local recoverable = {
+    CHAT_MSG_WHISPER           = "in",
+    CHAT_MSG_WHISPER_INFORM    = "out",
+    CHAT_MSG_BN_WHISPER        = "in",
+    CHAT_MSG_BN_WHISPER_INFORM = "out",
+}
+
+local function InLockdown()
+    return C_ChatInfo and C_ChatInfo.InChatMessagingLockdown
+        and C_ChatInfo.InChatMessagingLockdown() or false
+end
+
+local function Recover(e)
+    local text = C_ChatInfo.GetChatLineText(e.lineID)
+    -- nil: the line has left the client's chat log; secret: still unreadable
+    -- although the lockdown is over. Neither can be retried usefully.
+    if IsSecret(text) or type(text) ~= "string" or text == "" then return end
+    local dir = recoverable[e.event]
+    local name = e.name
+    if not name then
+        -- for a line you sent, the recorded sender is you, not the target
+        if dir == "out" then return end
+        name = C_ChatInfo.GetChatLineSenderName(e.lineID)
+        if IsSecret(name) or type(name) ~= "string" or name == "" then return end
+    end
+    local info
+    if e.event:find("_BN_", 1, true) then
+        local presenceID = UsableBNetID(e.presenceID, name)
+        info = { name = BNName(presenceID, name), isBN = true, presenceID = presenceID }
+    else
+        local guid = e.guid
+        if not guid and dir == "in" and C_ChatInfo.GetChatLineSenderGUID then
+            guid = UsableGUID(C_ChatInfo.GetChatLineSenderGUID(e.lineID))
+        end
+        info = { name = name, isBN = false, guid = guid }
+    end
+    if dir == "in" then
+        RememberTell(name, info.isBN)
+        RouteIncoming(info, text, "quiet", e.t)
+    else
+        RouteOutgoing(info, text, true, e.t)
+    end
+end
+
+local function Drain()
+    if InLockdown() then return end
+    local batch = pending
+    pending = {}
+    for _, e in ipairs(batch) do
+        local ok, err = pcall(Recover, e)
+        if not ok then geterrorhandler()(err) end
+    end
+    if #pending == 0 and drainTicker then
+        drainTicker:Cancel()
+        drainTicker = nil
+    end
+end
+
+local function Defer(event, ...)
+    if not recoverable[event] then return end
+    if not (C_ChatInfo and C_ChatInfo.GetChatLineText and C_ChatInfo.GetChatLineSenderName) then return end
+    local lineID = select(11, ...)
+    if IsSecret(lineID) or type(lineID) ~= "number" then return end
+    local name, presenceID = select(2, ...), select(13, ...)
+    -- IsSecret must run before any comparison on these
+    if IsSecret(name) or name == "" then name = nil end
+    if IsSecret(presenceID) then presenceID = nil end
+    pending[#pending + 1] = {
+        event = event, lineID = lineID, t = time(),
+        name = name, guid = UsableGUID(select(12, ...)), presenceID = presenceID,
+    }
+    if not drainTicker then drainTicker = C_Timer.NewTicker(1, Drain) end
+end
+
 local ef = CreateFrame("Frame")
 for event in pairs(handlers) do
     ef:RegisterEvent(event)
 end
 ef:SetScript("OnEvent", function(_, event, ...)
     if not ns.db or not ns.db.enabled then return end
-    if not Routable(...) then return end
+    if not Routable(...) then
+        Defer(event, ...)
+        return
+    end
     local h = handlers[event]
     if not h then return end
     -- Safety net: the default chat copy is already suppressed by the time we
@@ -268,6 +401,8 @@ end)
 --=========================================================================
 local function suppress(_, _, ...)
     if not (ns.db and ns.db.enabled == true) then return false end
+    -- Windows are hidden in combat; keep the chat copy so the whisper is seen.
+    if ChatCopyShown() then return false end
     -- Whispy can't route a secret-valued sender or text into a window, so
     -- leave that copy visible in the default chat frames.
     return Routable(...)  -- true = block from default chat frames
@@ -393,25 +528,38 @@ startHook:SetScript("OnEvent", function()
 end)
 
 --=========================================================================
--- Reply keybinding -- the game's REPLY binding ("R" by default) replies to
--- the last whisper received, but it only knows about whispers the default
--- chat frames displayed, and Whispy suppresses those. So after the default
--- reply runs, route the key into the window of the last incoming whisper.
+-- Reply keybindings -- the game's REPLY binding ("R" by default) replies to
+-- the last whisper received, REPLY2 to the last player you whispered. Both
+-- read the reply memory RememberTell mirrors above, put the edit box into
+-- whisper mode (the UpdateHeader hook opens the conversation and flips the
+-- box back to SAY), then re-activate the now-empty default edit box. After
+-- they run, close that box and hand the keyboard to the Whispy window. When
+-- the memory is empty (a secret name the mirror had to skip), fall back to
+-- the last conversation Whispy itself saw.
 --=========================================================================
 
-local function OnReplyTell()
+local function OnReply(last)
     if not ns.db or not ns.db.enabled then return end
-    if not lastIncoming then return end
-    -- If the default UI did find its own last teller (a secret-named sender
-    -- Whispy left in the chat frame), the edit box is now in whisper mode and
-    -- the UpdateHeader hook above has already dealt with it -- don't fight it.
+    if not last then return end
     local editBox = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow())
         or (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
     if editBox then
+        -- The default UI found a target Whispy could not take over (a
+        -- secret-named sender it left in the chat frame): the box is in
+        -- whisper mode for it -- don't fight that.
         local ct = editBox:GetAttribute("chatType")
         if ct == "WHISPER" or ct == "BN_WHISPER" then return end
+        -- Otherwise the box was only re-opened by the reply itself.
+        local text = editBox:GetText()
+        if not IsSecret(text) and text == "" then
+            if ChatFrameEditBoxMixin and ChatFrameEditBoxMixin.OnEscapePressed then
+                ChatFrameEditBoxMixin.OnEscapePressed(editBox)
+            elseif ChatEdit_OnEscapePressed then
+                ChatEdit_OnEscapePressed(editBox)
+            end
+        end
     end
-    local win = ns.GetWindow(lastIncoming)
+    local win = ns.GetWindow(last)
     -- "select" so tab mode switches to this conversation's tab. Focus a frame
     -- late: the keypress that fired the binding would otherwise also arrive in
     -- the freshly focused edit box as a typed "r".
@@ -422,11 +570,43 @@ local function OnReplyTell()
     end
 end
 
-if ChatFrameUtil and type(ChatFrameUtil.ReplyTell) == "function" then
-    hooksecurefunc(ChatFrameUtil, "ReplyTell", OnReplyTell)
-elseif type(ChatFrame_ReplyTell) == "function" then
-    hooksecurefunc("ChatFrame_ReplyTell", OnReplyTell)  -- older-client fallback
+local function HookReply(name, legacyName, getLast)
+    local hook = function() OnReply(getLast()) end
+    if ChatFrameUtil and type(ChatFrameUtil[name]) == "function" then
+        hooksecurefunc(ChatFrameUtil, name, hook)
+    elseif type(_G[legacyName]) == "function" then
+        hooksecurefunc(legacyName, hook)  -- older-client fallback
+    end
 end
+HookReply("ReplyTell",  "ChatFrame_ReplyTell",  function() return lastIncoming end)
+HookReply("ReplyTell2", "ChatFrame_ReplyTell2", function() return lastOutgoing end)
+
+--=========================================================================
+-- Whisper mode -- with the game's "whisperMode" CVar on a pop-out setting,
+-- the chat manager opens a dedicated chat tab per whisper target before any
+-- filter runs, so with Whispy suppressing the text those tabs open empty.
+-- Offer to switch to in-line once; the answer is remembered either way.
+--=========================================================================
+local function CheckWhisperMode()
+    if not ns.db or not ns.db.enabled or ns.db.whisperModeAsked then return end
+    if not (GetCVar and SetCVar and StaticPopup_Show) then return end
+    if GetCVar("whisperMode") == "inline" then return end
+    StaticPopupDialogs["WHISPY_WHISPER_MODE"] = {
+        text = ns.T("whisperModeText"),
+        button1 = ns.T("whisperModeAccept"),
+        button2 = ns.T("whisperModeLater"),
+        OnAccept = function() SetCVar("whisperMode", "inline") end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+    }
+    ns.db.whisperModeAsked = true
+    StaticPopup_Show("WHISPY_WHISPER_MODE")
+end
+ns.CheckWhisperMode = CheckWhisperMode
+
+startHook:HookScript("OnEvent", CheckWhisperMode)
 
 --=========================================================================
 -- Test helpers -- inject fake whispers locally (nothing is sent to the server)
