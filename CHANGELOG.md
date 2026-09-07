@@ -2,6 +2,16 @@
 
 All notable changes to Whispy are documented here.
 
+## [1.9] - 2026-09-07
+
+### Fixed
+- Battle.net whispers no longer vanish when the game delivers part of the message as a 12.x secret value.
+- A whisper whose text or sender can't be routed now stays visible in the default chat frame instead of being lost.
+- If routing a whisper fails unexpectedly, the raw line is echoed to the default chat frame as a safety net.
+
+### Added
+- Whispering an offline Battle.net friend now shows the "player is offline" notice inside the conversation window.
+
 ## [1.8] - 2026-09-06
 
 ### Added
