@@ -47,8 +47,9 @@ end
 -- from the (non-secret) sender name where possible so replies keep working.
 local function UsableBNetID(presenceID, name)
     if IsSecret(presenceID) then presenceID = nil end
+    -- IsSecret must run before the ~= "" comparison: comparing a secret throws.
     if not presenceID and BNet_GetBNetIDAccount
-        and name and name ~= "" and not IsSecret(name) then
+        and not IsSecret(name) and name and name ~= "" then
         local id = BNet_GetBNetIDAccount(name)
         if id and not IsSecret(id) then presenceID = id end
     end
@@ -59,7 +60,7 @@ end
 -- the session that minted them; string operations mangle them and storing
 -- them yields garbage after a reload. Treat them as unusable for display.
 local function IsKString(s)
-    return type(s) == "string" and s:find("|K", 1, true) ~= nil
+    return type(s) == "string" and not IsSecret(s) and s:find("|K", 1, true) ~= nil
 end
 ns.IsKString = IsKString
 
@@ -68,14 +69,17 @@ local function BNName(presenceID, fallback)
     if presenceID and C_BattleNet and C_BattleNet.GetAccountInfoByID then
         local ai = C_BattleNet.GetAccountInfoByID(presenceID)
         if ai then
-            if ai.accountName and ai.accountName ~= ""
-                and not IsKString(ai.accountName) then
-                return ai.accountName
+            -- account-info fields can come back as 12.x secret values too;
+            -- IsSecret must run before any comparison or string op on them
+            local an = ai.accountName
+            if not IsSecret(an) and an and an ~= "" and not IsKString(an) then
+                return an
             end
             -- the battleTag is always plain text; its nickname half is the
             -- name the contact goes by
-            if ai.battleTag and ai.battleTag ~= "" then
-                return ai.battleTag:match("^(.-)#") or ai.battleTag
+            local bt = ai.battleTag
+            if not IsSecret(bt) and bt and bt ~= "" then
+                return bt:match("^(.-)#") or bt
             end
         end
     end
@@ -128,17 +132,24 @@ end
 
 local handlers = {}
 
+-- The guid arg can also be a 12.x secret value; a stored secret guid would
+-- throw later (GetWindow compares it), so drop it at the source.
+local function UsableGUID(guid)
+    if IsSecret(guid) then return nil end
+    return guid
+end
+
 -- Regular incoming whisper: arg1=text, arg2=author(Name-Realm), arg12=guid
 function handlers.CHAT_MSG_WHISPER(...)
     local text, author = ...
-    local guid = select(12, ...)
+    local guid = UsableGUID(select(12, ...))
     RouteIncoming({ name = author, isBN = false, guid = guid }, text)
 end
 
 -- Regular outgoing whisper you sent: arg1=text, arg2=target, arg12=guid
 function handlers.CHAT_MSG_WHISPER_INFORM(...)
     local text, target = ...
-    local guid = select(12, ...)
+    local guid = UsableGUID(select(12, ...))
     RouteOutgoing({ name = target, isBN = false, guid = guid }, text)
 end
 
@@ -195,21 +206,61 @@ function handlers.CHAT_MSG_SYSTEM(...)
     if win then win:AddChat("system", nil, text, nil, true) end
 end
 
+-- The Battle.net counterpart: whispering an offline BN friend answers with
+-- CHAT_MSG_BN_WHISPER_PLAYER_OFFLINE (arg1=display text, arg2=name).
+-- BN windows are keyed by presence ID, so find the conversation by name.
+local function OfflineBNWindow(name)
+    if IsSecret(name) or not name or name == "" then return nil end
+    for _, win in pairs(ns.Windows) do
+        if win.info.isBN and win.info.name == name then return win end
+    end
+    return nil
+end
+
+function handlers.CHAT_MSG_BN_WHISPER_PLAYER_OFFLINE(...)
+    local text, name = ...
+    local win = OfflineBNWindow(name)
+    if win then win:AddChat("system", nil, text, nil, true) end
+end
+
 --=========================================================================
 -- Event frame (routing) -- runs once per event, independent of chat frames
 --=========================================================================
+
+-- One predicate, used by BOTH the router below and the suppression filter.
+-- The chat frames run their filters before our router sees the event, so any
+-- disagreement between the two means a message hidden from default chat that
+-- never reaches a Whispy window -- silently lost. During the 12.x "chat
+-- messaging lockdown" the text and the sender name are each delivered as
+-- secret values (MakeKey/AddChat/History concatenate both), so a message with
+-- either one secret stays in the default chat frames instead.
+local function Routable(...)
+    local text, name = ...
+    return not (IsSecret(text) or IsSecret(name))
+end
+
 local ef = CreateFrame("Frame")
 for event in pairs(handlers) do
     ef:RegisterEvent(event)
 end
 ef:SetScript("OnEvent", function(_, event, ...)
     if not ns.db or not ns.db.enabled then return end
-    -- A secret sender name can't key a window (MakeKey concatenates it), so
-    -- skip routing; the suppression filter below leaves the message in the
-    -- default chat frame in that case, so it isn't lost.
-    if IsSecret((select(2, ...))) then return end
+    if not Routable(...) then return end
     local h = handlers[event]
-    if h then h(...) end
+    if not h then return end
+    -- Safety net: the default chat copy is already suppressed by the time we
+    -- run, so a routing error would swallow the message entirely. If a route
+    -- fails (e.g. an unexpected secret value deeper in the payload), echo the
+    -- raw line into the default chat frame and surface the error.
+    local ok, err = pcall(h, ...)
+    if not ok then
+        local text, name = ...
+        pcall(function()
+            DEFAULT_CHAT_FRAME:AddMessage(
+                ("%s: %s"):format(tostring(name), tostring(text)), 1, 0.5, 1)
+        end)
+        geterrorhandler()(err)
+    end
 end)
 
 --=========================================================================
@@ -217,9 +268,9 @@ end)
 --=========================================================================
 local function suppress(_, _, ...)
     if not (ns.db and ns.db.enabled == true) then return false end
-    -- Whispy couldn't route a secret-named sender into a window, so leave
-    -- that copy visible in the default chat frames.
-    return not IsSecret((select(2, ...)))  -- true = block from default chat frames
+    -- Whispy can't route a secret-valued sender or text into a window, so
+    -- leave that copy visible in the default chat frames.
+    return Routable(...)  -- true = block from default chat frames
 end
 
 local suppressedEvents = {
@@ -236,8 +287,16 @@ end
 
 -- System messages are only hidden selectively: just the "player not online"
 -- reply, and only when a Whispy window is open to show it instead.
-ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, text)
-    return suppress() and OfflineTargetWindow(text) ~= nil
+ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(self, event, ...)
+    local text = ...
+    return suppress(self, event, ...) and OfflineTargetWindow(text) ~= nil
+end)
+
+-- Same selective rule for the BN offline notice: hidden from the default
+-- chat frames only when a Whispy conversation window shows it instead.
+ChatFrame_AddMessageEventFilter("CHAT_MSG_BN_WHISPER_PLAYER_OFFLINE", function(self, event, ...)
+    local name = select(2, ...)
+    return suppress(self, event, ...) and OfflineBNWindow(name) ~= nil
 end)
 
 --=========================================================================
